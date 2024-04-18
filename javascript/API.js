@@ -16,7 +16,7 @@ const getGoogleStats = require('./endpoints/getGoogleStatas');
 
 const app = express();
 
-const PORT = 3001;
+const PORT = 3000;
 
 //CHNAGES MADE
 
