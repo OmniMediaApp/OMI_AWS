@@ -13,6 +13,7 @@ async def getGoogleAccounts():
         "use_proto_plus": True,
     }
 
+
     try:
         # Initialize the Google Ads client
         google_ads_client = GoogleAdsClient.load_from_dict(config)
