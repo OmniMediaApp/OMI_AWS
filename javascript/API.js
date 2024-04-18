@@ -121,7 +121,7 @@ app.get('/createDraft', async (req, res) => {
     res.status(500).send({error: 'An error occurred while creating draft.'})
   }
 
-});
+}); 
 
 app.get('/createFacebookAd', async (req, res) => {
   try{
