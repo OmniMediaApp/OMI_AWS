@@ -1,0 +1,6 @@
+
+# Dependency directories
+
+javascript/node_modules/
+jspm_packages/
+python/venv/
