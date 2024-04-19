@@ -3,7 +3,9 @@ import asyncio
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 
-async def getGoogleSpendHourly(customer_id, dateStart):
+async def getGoogleSpendHourly(db, customer_id, dateStart):
+    
+    
     config = {
         "client_id": "776354593059-bkuqml5u1nfrmfqlmhcdactisbupqqb4.apps.googleusercontent.com",  # your client ID
         "client_secret": "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",  # your client secret

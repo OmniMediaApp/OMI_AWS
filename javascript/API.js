@@ -146,7 +146,7 @@ app.get('/DBtest', async (req, res) => {
   res.send({ date: 'success' });
 });
 
-app.get('/getGoogleRefreshToken', async (req, res) => {
+app.post('/getGoogleRefreshToken', async (req, res) => {
   try {
     const userID = req.body.userID;
     const result = await getGoogleRefreshToken(db, userID);

@@ -3,17 +3,26 @@ from flask_cors import CORS
 from getGoogleAccounts import getGoogleAccounts
 from getGoogleSpendHourly import getGoogleSpendHourly
 from getGoogleSpend import getGoogleSpend
+import firestore_admin 
+from firebase_admin import firestore
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+cred = firestore_admin.initialize_credential('serviceAccountKey.json')
+initialize_firestore(cred)
+
+db = firestore.client()
 @app.route("/api")
 def index1():
     return "Success"
 
-@app.route("/api/getGoogleAccounts", methods=['GET'])
+@app.route("/api/getGoogleAccounts", methods=['POST'])
 async def index2():
     try:
-        result = await getGoogleAccounts()
+        data = request.json
+        businessID = data.get('businessID')
+        result = await getGoogleAccounts(db, businessID)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -24,7 +33,7 @@ async def index3():
         data = request.json
         start_date = data.get('start_date')
         customer_id = data.get('customer_id')
-        result = await getGoogleSpend(customer_id, start_date)
+        result = await getGoogleSpend(db, customer_id, start_date)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -35,7 +44,7 @@ async def index4():
         data = request.json
         start_date = data.get('start_date')
         customer_id = data.get('customer_id')
-        result = await getGoogleSpendHourly(customer_id, start_date)
+        result = await getGoogleSpendHourly(db, customer_id, start_date)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})

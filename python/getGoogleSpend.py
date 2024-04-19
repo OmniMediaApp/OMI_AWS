@@ -1,15 +1,20 @@
+import os
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 import datetime
 import asyncio
 
 # Function to get yesterday's spend for a specific customer
-async def getGoogleSpend(customer_id, dateStart):
+async def getGoogleSpend(db, customer_id, dateStart):
     # Configuration for the Google Ads API client
+    
+    client_id = os.environ.get('CLIENT_ID')
+    client_secret = os.environ.get('CLIENT_SECRET')
+    developer_token = os.environ.get('DEVELOPER_TOKEN')
     config = {
-        "client_id": "776354593059-bkuqml5u1nfrmfqlmhcdactisbupqqb4.apps.googleusercontent.com",
-        "client_secret": "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",
-        "developer_token": "RTeEbkzAQJZQRKOnOG4r4w",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "developer_token": developer_token,
         "refresh_token": "1//04reYZjt3NWI9CgYIARAAGAQSNwF-L9Irj8n3gq1JNF09AQQR9N0OFhuezUUUX-6-Lnt30QxoF247SOHiByUF0wO7_Rkr38ckN4U",
         "use_proto_plus": True,
     }

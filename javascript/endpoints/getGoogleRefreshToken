@@ -16,7 +16,7 @@ async function getGoogleRefreshToken(db, userId) {
 
     const clientId = '47545590936-vavi3du605spbtdbpjqjvelf4v973jb8.apps.googleusercontent.com';
     const clientSecret = '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';
-    const redirectUri = 'http://localhost:3010/Login';
+    const redirectUri = 'http://localhost:3010/process-google-redirect';
     const authorizationCode = authCode;
 
     // OAuth token endpoint

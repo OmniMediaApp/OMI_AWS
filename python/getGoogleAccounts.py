@@ -1,43 +1,41 @@
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 import asyncio
+import os
 
-# Function to make a Google Ads API request
-async def getGoogleAccounts():
-    # Configuration for the Google Ads API client
-    config = {
-        "client_id": "776354593059-bkuqml5u1nfrmfqlmhcdactisbupqqb4.apps.googleusercontent.com",
-        "client_secret": "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",
-        "developer_token": "RTeEbkzAQJZQRKOnOG4r4w",
-        "refresh_token": "1//04reYZjt3NWI9CgYIARAAGAQSNwF-L9Irj8n3gq1JNF09AQQR9N0OFhuezUUUX-6-Lnt30QxoF247SOHiByUF0wO7_Rkr38ckN4U",
-        "use_proto_plus": True,
-    }
-
-
+async def getGoogleAccounts(db, businessID):
     try:
-        # Initialize the Google Ads client
+        docref = db.collection('businesses').document(businessID)
+        doc = await docref.get()
+        refresh_token = doc.data().get('refresh_token')
+
+        client_id = os.environ.get('CLIENT_ID')
+        client_secret = os.environ.get('CLIENT_SECRET')
+        developer_token = os.environ.get('DEVELOPER_TOKEN')
+
+        config = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "developer_token": developer_token,
+            "refresh_token": refresh_token,
+            "use_proto_plus": True,
+        }
+
         google_ads_client = GoogleAdsClient.load_from_dict(config)
-
-        # Access the CustomerService
         customer_service = google_ads_client.get_service("CustomerService")
-
-        # Make the API call to list accessible customers
         accessible_customers = customer_service.list_accessible_customers()
 
-        final_array = []
-        for index, account in enumerate(accessible_customers.resource_names):
-            final_array.append({"name": account})
-
+        final_array = [{"name": account} for account in accessible_customers.resource_names]
         return final_array
 
     except GoogleAdsException as ex:
-        return(f'Request with ID "{ex.request_id}" failed with status "{ex.error.code().name}" and includes the following errors:')
+        error_details = (f'Request with ID "{ex.request_id}" failed with status "{ex.error.code().name}" and includes the following errors:')
         for error in ex.failure.errors:
-            print(f'\tError with message "{error.message}".')
+            error_details += (f'\n\tError with message "{error.message}".')
             if error.location:
                 for field_path_element in error.location.field_path_elements:
-                    print(f'\t\tOn field: {field_path_element.field_name}')
+                    error_details += (f'\n\t\tOn field: {field_path_element.field_name}')
+        return error_details
+
     except Exception as ex:
-        return('Unexpected error occurred:', ex)
-
-
+        return(f'Unexpected error occurred: {str(ex)}')
