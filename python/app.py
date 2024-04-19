@@ -6,7 +6,9 @@ from getGoogleSpend import getGoogleSpend
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore_async
+from dotenv import load_dotenv
 
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -22,9 +24,12 @@ def index1():
 @app.route("/api/getGoogleAccounts", methods=['POST'])
 async def index2():
     try:
+
         data = request.json
         businessID = data.get('businessID')
+        print(businessID)
         result = await getGoogleAccounts(db, businessID)
+        print(result)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -53,4 +58,4 @@ async def index4():
 
 if __name__ == "__main__":
     from waitress import serve
-    serve(app, host="0.0.0.0", port=3001)
+    serve(app, host="0.0.0.0", port=3002)

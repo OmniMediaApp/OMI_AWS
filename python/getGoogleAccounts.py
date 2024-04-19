@@ -5,9 +5,14 @@ import os
 
 async def getGoogleAccounts(db, businessID):
     try:
+        print('called')
         docref = db.collection('businesses').document(businessID)
         doc = await docref.get()
-        refresh_token = doc.data().refreshToken
+        
+        data = doc.to_dict()
+        refresh_token = data.get('refreshToken')
+
+        print(refresh_token)
         
         client_id = os.environ.get('CLIENT_ID')
         client_secret = os.environ.get('CLIENT_SECRET')
@@ -20,6 +25,8 @@ async def getGoogleAccounts(db, businessID):
             "refresh_token": refresh_token,
             "use_proto_plus": True,
         }
+
+        print(config)
 
         google_ads_client = GoogleAdsClient.load_from_dict(config)
         customer_service = google_ads_client.get_service("CustomerService")
