@@ -3,16 +3,18 @@ from flask_cors import CORS
 from getGoogleAccounts import getGoogleAccounts
 from getGoogleSpendHourly import getGoogleSpendHourly
 from getGoogleSpend import getGoogleSpend
-import firestore_admin 
-from firebase_admin import firestore
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore_async
+
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-cred = firestore_admin.initialize_credential('serviceAccountKey.json')
-initialize_firestore(cred)
+cred = credentials.Certificate('serviceAccountKey.json')
+firebase_admin.initialize_app(cred)
 
-db = firestore.client()
+db = firestore_async.client()
 @app.route("/api")
 def index1():
     return "Success"

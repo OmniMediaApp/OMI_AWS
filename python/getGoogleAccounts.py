@@ -7,8 +7,8 @@ async def getGoogleAccounts(db, businessID):
     try:
         docref = db.collection('businesses').document(businessID)
         doc = await docref.get()
-        refresh_token = doc.data().get('refresh_token')
-
+        refresh_token = doc.data().refreshToken
+        
         client_id = os.environ.get('CLIENT_ID')
         client_secret = os.environ.get('CLIENT_SECRET')
         developer_token = os.environ.get('DEVELOPER_TOKEN')
