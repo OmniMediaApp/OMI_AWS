@@ -18,7 +18,7 @@ async function createFacebookAd (db, req, res) {
     //const adLink = request.query.adLink;
     //const adMessage = request.query.adMessage;
 
-
+    
     async function getBusinessData(db, uid) {
         const userRef = db.collection('users').doc(uid);
         const userDoc = await userRef.get();
