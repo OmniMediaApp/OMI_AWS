@@ -1,7 +1,6 @@
 
 const axios = require('axios');
 const shopifyDomain = 'instant-viral.myshopify.com';
-const accessToken = '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';
 // Replace these placeholders with your actual values
 
 async function getGoogleRefreshToken(db, userId) {
@@ -14,8 +13,10 @@ async function getGoogleRefreshToken(db, userId) {
     const authCode = busSnap.data().googleOAuthCode; 
     console.log("businedd ID is ",businessID);
 
-    const clientId = '47545590936-vavi3du605spbtdbpjqjvelf4v973jb8.apps.googleusercontent.com';
-    const clientSecret = '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';
+    const clientId = process.env.GOOGLE_CLIENT_ID
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+
+   
     const redirectUri = 'http://localhost:3010/process-google-redirect';
     const authorizationCode = authCode;
 

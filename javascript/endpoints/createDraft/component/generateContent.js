@@ -2,6 +2,10 @@ const axios = require('axios');
 
 async function generateContent(productName, productDescription) {
     try {
+        const openAIAccessKey = process.env.OPENAI_API
+
+        console.log(openAIAccessKey)
+
         const prompt = `Given a product name "${productName}" and description "${productDescription}", generate the following. Just include your response, no number or explanation:
         1. An optimized product name (MAXIMUM OF 20 characters, no exceptions).
         2. Facebook Ad Text (90-120 characters).
@@ -63,7 +67,7 @@ async function generateContent(productName, productDescription) {
             {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': 'Bearer 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'  // Replace with your actual API key
+                    'Authorization': `Bearer ${openAIAccessKey}`  // Replace with your actual API key
                 },
             }
         );

@@ -2,5 +2,7 @@
 # Dependency directories
 
 javascript/node_modules/
+javascript/.env
 jspm_packages/
 python/venv/
+python/.env

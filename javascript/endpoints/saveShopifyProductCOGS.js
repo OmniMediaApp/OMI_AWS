@@ -1,5 +1,7 @@
 const axios = require('axios');
 const moment = require('moment-timezone'); // Added moment-timezone for improved date handling
+const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+
 
 async function saveShopifyProductCOGS(db, req) {
     try {
@@ -66,8 +68,8 @@ async function saveShopifyProductCOGS(db, req) {
             return productCosts;
         };
 
-        const products = await getProducts('https://instant-viral.myshopify.com', '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');
-        const inventoryArray = await getProductCost('https://instant-viral.myshopify.com', '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', products);
+        const products = await getProducts('https://instant-viral.myshopify.com', accessToken);
+        const inventoryArray = await getProductCost('https://instant-viral.myshopify.com', accessToken, products);
 
         return { inventoryArray };
     } catch (error) {

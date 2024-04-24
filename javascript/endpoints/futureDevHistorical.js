@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const shopifyDomain = 'instant-viral.myshopify.com';
-const accessToken = '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';
+const accessToken = process.env.SHOPIFY_ACCESS_TOKEN
 
 // Placeholder function for getCOGS - you will need to implement this based on your application logic
 async function getCOGS(productID) {

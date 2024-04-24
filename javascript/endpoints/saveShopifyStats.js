@@ -4,7 +4,7 @@ const axios = require('axios');
 //const dateEnd = '2024-02-09';
 const shopifyDomain = 'instant-viral.myshopify.com';
 const desiredTimezoneOffset = '-05:00'; // New York timezone offset
-const accessToken = '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';
+const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
 
 

@@ -11,8 +11,9 @@ const cors = require('cors');
 const admin = require('firebase-admin');
 const serviceAccount = require('./ServiceAccountKey.json')
 const handleMediaUpload = require('./endpoints/uploadMedia'); // Adjust './uploadMedia' as necessary based on your directory structure
-const getGoogleStats = require('./endpoints/getGoogleStatas');
+const getGoogleStats = require('./endpoints/getGoogleStats');
 //const saveHistoricalShopifyStats = require('./endpoints/saveHistoricalShopifyStats');
+require('dotenv').config();
 
 const app = express();
 
