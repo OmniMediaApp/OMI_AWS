@@ -114,21 +114,21 @@ client.connect()
 
 
 
-  async function populate_fb_adset_targeting_interests(fbAdsetTargetingInterestData) {
+  async function populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData) {
     try {
         const query = `
-        INSERT INTO fb_adset_targeting_interests 
-          (interest_id, interest_name, adset_id) 
+        INSERT INTO fb_targeting_optimization_types 
+          (adset_id, key, value) 
         VALUES 
           ($1, $2, $3)
         `;
     
       const values = [
-        fbAdsetTargetingInterestData.interest_id, fbAdsetTargetingInterestData.interest_name, fbAdsetTargetingInterestData.adset_id
+        fbAdsetTargetingOptimizationTypesData.adset_id, fbAdsetTargetingOptimizationTypesData.key, fbAdsetTargetingOptimizationTypesData.value
       ];
   
       const result = await client.query(query, values);
-      console.log(`Inserted or updated adset: ${fbAdsetTargetingInterestData.adset_id} into fb_adset_targeting_interests successfully`);
+      console.log(`Inserted or updated adset: ${fbAdsetTargetingOptimizationTypesData.adset_id} into fb_targeting_optimization_types successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
     } finally {
@@ -139,21 +139,22 @@ client.connect()
   
 
 
-  async function populate_fb_adset_targeting_countries(fbAdsetTargetingCountryData) {
+  async function populate_fb_adset_targeting(fbAdsetTargetingData) {
     try {
         const query = `
-        INSERT INTO fb_adset_targeting_countries
-          (adset_id, country) 
+        INSERT INTO fb_targeting
+          (adset_id, age_max, age_min, geo_countries, location_types, brand_safety_content_filter_levels) 
         VALUES 
-          ($1, $2)
+          ($1, $2, $3, $4, $5, $6)
         `;
     
       const values = [
-        fbAdsetTargetingCountryData.adset_id, fbAdsetTargetingCountryData.country
+        fbAdsetTargetingData.adset_id, fbAdsetTargetingData.age_max, fbAdsetTargetingData.age_min, fbAdsetTargetingData.geo_countries,
+        fbAdsetTargetingData.location_types, fbAdsetTargetingData.brand_safety_content_filter_levels,
       ];
   
       const result = await client.query(query, values);
-      console.log(`Inserted or updated adset: ${fbAdsetTargetingCountryData.adset_id} into fb_adset_targeting_countries successfully`);
+      console.log(`Inserted or updated adset: ${fbAdsetTargetingData.adset_id} into fb_targeting successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
     } finally {
@@ -161,7 +162,10 @@ client.connect()
       //client.end();
     }
   };
-  
+
+
+
+
 
 
 
@@ -205,7 +209,8 @@ async function main () {
         omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
         ad_ids: facebookAdsetData.adsets.data[i].ad_ids,
         db_updated_at: new Date(),
-
+        pixel_id: facebookAdsetData.adsets.data[i].promoted_object.pixel_id,
+        custom_event_type: facebookAdsetData.adsets.data[i].promoted_object.custom_event_type,
                 
 
                 //fb_adset_targeting_location_types
@@ -214,6 +219,58 @@ async function main () {
                 key: facebookAdsetData.adsets.data[i].targeting_optimization_types[0].key,
                 value: facebookAdsetData.adsets.data[i].targeting_optimization_types[0].value,
     }
+
+
+
+    
+    for (let j = 0; j < facebookAdsetData.adsets.data[i].targeting_optimization_types.length; j++) {
+        const fbAdsetTargetingOptimizationTypesData = {
+            adset_id: facebookAdsetData.adsets.data[i].id,
+            key: facebookAdsetData.adsets.data[i].targeting_optimization_types[j].key,
+            value: facebookAdsetData.adsets.data[i].targeting_optimization_types[j].value,
+        }        
+        populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData)
+    }
+
+
+
+    for (let j = 0; j < facebookAdsetData.adsets.data[i].targeting.length; j++) {
+        const fbAdsetTargetingData = {
+            adset_id: facebookAdsetData.adsets.data[i].id,
+            age_max: facebookAdsetData.adsets.data[i].targeting.age_max,
+            age_min: facebookAdsetData.adsets.data[i].targeting.age_min,
+            geo_countries: facebookAdsetData.adsets.data[i].targeting.geo_locations[j].countries,
+            location_types: facebookAdsetData.adsets.data[i].targeting.geo_locations[j].location_types,
+            brand_safety_content_filter_levels: facebookAdsetData.adsets.data[i].targeting.brand_safety_content_filter_levels,
+        }        
+        const fb_targetingSerialID = populate_fb_adset_targeting(fbAdsetTargetingData)
+
+        for (let k = 0; k < facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests.length; k++) {
+            const fb_flexible_spec = {
+                targeting_id: fb_targetingSerialID,
+                interest_id: facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests[k].id,
+                interest_name: facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests[k].name
+            }
+
+            
+        }
+
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     const targetingData = facebookAdsetData.adsets.data[i].targeting;
     const interestsArray = targetingData && targetingData.flexible_spec && targetingData.flexible_spec[0] && targetingData.flexible_spec[0].interests;
@@ -231,7 +288,7 @@ async function main () {
             interest_name: interest_name,
         };
     
-        populate_fb_adset_targeting_interests(fbAdsetTargetingInterestData);
+        populate_fb_adset_targeting_optimization_types(fbAdsetTargetingInterestData);
     }
     
 
@@ -243,12 +300,12 @@ async function main () {
         const country = countriesArray && countriesArray[j];
     
         const fbAdsetTargetingCountryData = {
-            //fb_adset_targeting_countries
+            //fb_adset_targeting
             adset_id: facebookAdsetData.adsets.data[i].id,
             country: country || "none",
         };
     
-        populate_fb_adset_targeting_countries(fbAdsetTargetingCountryData);
+        populate_fb_adset_targeting(fbAdsetTargetingCountryData);
     }
     
 
