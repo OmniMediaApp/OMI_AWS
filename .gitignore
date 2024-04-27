@@ -6,3 +6,6 @@ javascript/.env
 jspm_packages/
 python/venv/
 python/.env
+python/env/
+python/.env
+python/.env
