@@ -31,7 +31,7 @@ client.connect()
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
       const fields = 'account_id,adsets{name,id,campaign,budget_remaining,account_id,adset_schedule,bid_adjustments,bid_amount,bid_strategy,bid_info,campaign_id,created_time,daily_budget,daily_spend_cap,end_time,lifetime_budget,lifetime_spend_cap,recommendations,promoted_object,start_time,source_adset,source_adset_id,rf_prediction_id,review_feedback,status,targeting,targeting_optimization_types,updated_time}';
-      const accessToken = 'EAAMJLvHGvzkBO9zE5PdLpOgz6znK10wZAYF97ZCocVMJ3FCQt8Fbh9sHRJFTSJnL3K4gCXxOuTB5z4eqZCLECSIBMJOYRjL1eMZClUXytfISbi3F183XPClkZAar6E2W7nRmkBR3hAZCZBx9PWypOuvJHlKjoNod8YZAcrTtZB2kWZBb29ZC9c14jFDqllZCiWQYnmuf3DIcvuYyGw0SWTZBf1VnZCGohVcmmx8cSOJLSM6Wxb1f4ZD'; // Replace with your Facebook access token
+      const accessToken = 'EAAMJLvHGvzkBO5WXFaVRKoJ78NHa0BTajblL6P3YXacZB5QvTrWKDAm1Vg8AoTyOW1EAGowebjr6LJ2pM90rDoGZA3OY02cHtjigaZBzbDxLPgdsLIlZAnyp6JDvQzBZBuKNki3IYkRL9fnEr2ks6mZBBLvsV3jJ7q05LqZCmXERZCgMijiEGTPVZBwVGunq775sS14eetq1vGhZAMVG5SKXrFQ74x8KRhthZCPL0UZCsUQZCoVkZD'; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -53,17 +53,19 @@ client.connect()
   async function populate_fbadsets(facebookAdsetData) {
     try {
         const query = `
-        INSERT INTO fb_adsets 
-          (adset_id, name, campaign_id, budget_remaining, account_id, adset_schedule, bid_adjustment, bid_amount, bid_strategy, bid_info, created_time, 
-            daily_budget, daily_spend_cap, end_time, lifetime_budget, lifetime_spend_cap, recommendations, start_time, source_adset, source_adset_id, 
-            rf_prediction_id, review_facebook, status, targeting_age_min, targeting_age_max, updated_time, omni_business_id, ad_ids, db_updated_at ) 
+        INSERT INTO fb_adset 
+          (adset_id, campaign_id, account_id, name, budget_remaining, adset_schedule, bid_adjustment, bid_amount, bid_strategy, bid_info, 
+            created_time, daily_budget, daily_spend_cap, start_time, end_time, lifetime_budget, lifetime_spend_cap, recommendations, source_adset,
+            source_adset_id, rf_prediction_id, review_facebook, status, updated_time, omni_business_id, db_updated_at, fb_promoted_pixel_id,
+            fb_promoted_custom_event_type, targeting_age_max, targeting_age_min, targeting_geo_countries, targeting_location_types,
+            targeting_brand_safety_content_filter_levels, targeting_automation) 
         VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, 
+            $29, $30, $31, $32, $33, $34)
         ON CONFLICT (adset_id) DO UPDATE SET 
-            name = EXCLUDED.name,
             campaign_id = EXCLUDED.campaign_id,
-            budget_remaining = EXCLUDED.budget_remaining,
             account_id = EXCLUDED.account_id,
+            budget_remaining = EXCLUDED.budget_remaining,
             adset_schedule = EXCLUDED.adset_schedule,
             bid_adjustment = EXCLUDED.bid_adjustment,
             bid_amount = EXCLUDED.bid_amount,
@@ -72,37 +74,47 @@ client.connect()
             created_time = EXCLUDED.created_time,
             daily_budget = EXCLUDED.daily_budget,
             daily_spend_cap = EXCLUDED.daily_spend_cap,
+            start_time = EXCLUDED.start_time,
             end_time = EXCLUDED.end_time,
             lifetime_budget = EXCLUDED.lifetime_budget,
             lifetime_spend_cap = EXCLUDED.lifetime_spend_cap,
             recommendations = EXCLUDED.recommendations,
-            start_time = EXCLUDED.start_time,
             source_adset = EXCLUDED.source_adset,
             source_adset_id = EXCLUDED.source_adset_id,
             rf_prediction_id = EXCLUDED.rf_prediction_id,
             review_facebook = EXCLUDED.review_facebook,
             status = EXCLUDED.status,
-            targeting_age_min = EXCLUDED.targeting_age_min,
-            targeting_age_max = EXCLUDED.targeting_age_max,
             updated_time = EXCLUDED.updated_time,
             omni_business_id = EXCLUDED.omni_business_id,
-            ad_ids = EXCLUDED.ad_ids,
-            db_updated_at = EXCLUDED.db_updated_at;
+            db_updated_at = EXCLUDED.db_updated_at,
+            fb_promoted_pixel_id = EXCLUDED.fb_promoted_pixel_id,
+            fb_promoted_custom_event_type = EXCLUDED.fb_promoted_custom_event_type,
+            targeting_age_max = EXCLUDED.targeting_age_max,
+            targeting_age_min = EXCLUDED.targeting_age_min,
+            targeting_geo_countries = EXCLUDED.targeting_geo_countries,
+            targeting_location_types = EXCLUDED.targeting_location_types,
+            targeting_brand_safety_content_filter_levels = EXCLUDED.targeting_brand_safety_content_filter_levels,
+            targeting_automation = EXCLUDED.targeting_automation;
+        
+          
         `;
-    
+
       const values = [
-        facebookAdsetData.adset_id, facebookAdsetData.name, facebookAdsetData.campaign_id, facebookAdsetData.budget_remaining, 
-        facebookAdsetData.account_id, facebookAdsetData.adset_schedule, facebookAdsetData.bid_adjustment, facebookAdsetData.bid_amount, 
+        facebookAdsetData.adset_id, facebookAdsetData.campaign_id, facebookAdsetData.account_id, facebookAdsetData.name, 
+        facebookAdsetData.budget_remaining, facebookAdsetData.adset_schedule, facebookAdsetData.bid_adjustment, facebookAdsetData.bid_amount, 
         facebookAdsetData.bid_strategy, facebookAdsetData.bid_info, facebookAdsetData.created_time, facebookAdsetData.daily_budget, 
-        facebookAdsetData.daily_spend_cap, facebookAdsetData.end_time, facebookAdsetData.lifetime_budget, facebookAdsetData.lifetime_spend_cap, 
-        facebookAdsetData.recommendations, facebookAdsetData.start_time, facebookAdsetData.source_adset, facebookAdsetData.source_adset_id,        
-        facebookAdsetData.rf_prediction_id, facebookAdsetData.review_facebook, facebookAdsetData.status, facebookAdsetData.targeting_age_min, facebookAdsetData.targeting_age_max, 
-        facebookAdsetData.updated_time, facebookAdsetData.omni_business_id, facebookAdsetData.ad_ids, facebookAdsetData.db_updated_at
+        facebookAdsetData.daily_spend_cap, facebookAdsetData.start_time, facebookAdsetData.end_time, facebookAdsetData.lifetime_budget, 
+        facebookAdsetData.lifetime_spend_cap, facebookAdsetData.recommendations, facebookAdsetData.source_adset, facebookAdsetData.source_adset_id,        
+        facebookAdsetData.rf_prediction_id, facebookAdsetData.review_facebook, facebookAdsetData.status, facebookAdsetData.updated_time, 
+        facebookAdsetData.omni_business_id, facebookAdsetData.db_updated_at, facebookAdsetData.fb_promoted_pixel_id, facebookAdsetData.fb_promoted_custom_event_type,
+        facebookAdsetData.targeting_age_max, facebookAdsetData.targeting_age_min, facebookAdsetData.targeting_geo_countries, facebookAdsetData.targeting_location_types,
+        facebookAdsetData.targeting_brand_safety_content_filter_levels, facebookAdsetData.targeting_automation
 
       ];
   
       const result = await client.query(query, values);
-      console.log(`Inserted or updated adset: ${facebookAdsetData.adset_id} successfully`);
+      console.log(`Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset successfully`);
+      return result
     } catch (err) {
       console.error('Insert or update error:', err);
     } finally {
@@ -110,7 +122,6 @@ client.connect()
       //client.end();
     }
   };
-
 
 
 
@@ -139,22 +150,22 @@ client.connect()
   
 
 
-  async function populate_fb_adset_targeting(fbAdsetTargetingData) {
+  async function populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData) {
     try {
         const query = `
-        INSERT INTO fb_targeting
-          (adset_id, age_max, age_min, geo_countries, location_types, brand_safety_content_filter_levels) 
+        INSERT INTO fb_flexible_spec
+          (adset_id, interest_id, interest_name) 
         VALUES 
-          ($1, $2, $3, $4, $5, $6)
+          ($1, $2, $3)
         `;
     
       const values = [
-        fbAdsetTargetingData.adset_id, fbAdsetTargetingData.age_max, fbAdsetTargetingData.age_min, fbAdsetTargetingData.geo_countries,
-        fbAdsetTargetingData.location_types, fbAdsetTargetingData.brand_safety_content_filter_levels,
+        fbAdsetFlexibleSpecData.adset_id, fbAdsetFlexibleSpecData.interest_id, fbAdsetFlexibleSpecData.interest_name, 
       ];
   
       const result = await client.query(query, values);
-      console.log(`Inserted or updated adset: ${fbAdsetTargetingData.adset_id} into fb_targeting successfully`);
+      //console.log(result)
+      console.log(`Inserted or updated adset: ${fbAdsetFlexibleSpecData.adset_id} into fb_targeting successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
     } finally {
@@ -172,18 +183,18 @@ client.connect()
 
 
 async function main () {
-  const facebookAdsetData = await getAdsets()
+    const facebookAdsetData = await getAdsets()
 
 
-  for (let i = 0; i < facebookAdsetData.adsets.data.length; i++) {
-  //for (let i = 0; i < 1; i++) {
+    for (let i = 0; i < facebookAdsetData.adsets.data.length; i++) {
+    //for (let i = 0; i < 2; i++) {
         const adsetData = {
         //fb_adsets
         adset_id: facebookAdsetData.adsets.data[i].id,
         name: facebookAdsetData.adsets.data[i].name,
         campaign_id: facebookAdsetData.adsets.data[i].campaign_id,
         budget_remaining: facebookAdsetData.adsets.data[i].budget_remaining,
-        account_id: facebookAdsetData.adsets.data[i].account_id,
+        account_id: "act_" + facebookAdsetData.adsets.data[i].account_id,
         adset_schedule: facebookAdsetData.adsets.data[i].adset_schedule,
         bid_adjustment: facebookAdsetData.adsets.data[i].bid_adjustment,
         bid_amount: facebookAdsetData.adsets.data[i].bid_amount,
@@ -211,15 +222,17 @@ async function main () {
         db_updated_at: new Date(),
         pixel_id: facebookAdsetData.adsets.data[i].promoted_object.pixel_id,
         custom_event_type: facebookAdsetData.adsets.data[i].promoted_object.custom_event_type,
-                
+        age_max: facebookAdsetData.adsets.data[i].targeting.age_max,
+        age_min: facebookAdsetData.adsets.data[i].targeting.age_min,
+        geo_countries: facebookAdsetData.adsets.data[i].targeting.geo_locations.countries,
+        location_types: facebookAdsetData.adsets.data[i].targeting.geo_locations.location_types,
+        brand_safety_content_filter_levels: facebookAdsetData.adsets.data[i].targeting.brand_safety_content_filter_levels,
+        targeting_automation: facebookAdsetData.adsets.data[i].targeting.targeting_automation,
+            
 
-                //fb_adset_targeting_location_types
-                location_types: facebookAdsetData.adsets.data[i].targeting.geo_locations.location_types[0],
-                //fb_adset_targeting_optimization_types
-                key: facebookAdsetData.adsets.data[i].targeting_optimization_types[0].key,
-                value: facebookAdsetData.adsets.data[i].targeting_optimization_types[0].value,
     }
 
+    await populate_fbadsets(adsetData);
 
 
     
@@ -233,86 +246,23 @@ async function main () {
     }
 
 
-
-    for (let j = 0; j < facebookAdsetData.adsets.data[i].targeting.length; j++) {
-        const fbAdsetTargetingData = {
-            adset_id: facebookAdsetData.adsets.data[i].id,
-            age_max: facebookAdsetData.adsets.data[i].targeting.age_max,
-            age_min: facebookAdsetData.adsets.data[i].targeting.age_min,
-            geo_countries: facebookAdsetData.adsets.data[i].targeting.geo_locations[j].countries,
-            location_types: facebookAdsetData.adsets.data[i].targeting.geo_locations[j].location_types,
-            brand_safety_content_filter_levels: facebookAdsetData.adsets.data[i].targeting.brand_safety_content_filter_levels,
-        }        
-        const fb_targetingSerialID = populate_fb_adset_targeting(fbAdsetTargetingData)
-
-        for (let k = 0; k < facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests.length; k++) {
-            const fb_flexible_spec = {
-                targeting_id: fb_targetingSerialID,
-                interest_id: facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests[k].id,
-                interest_name: facebookAdsetData.adsets.data[i].targeting[j].flexible_spec[0].interests[k].name
+    if (facebookAdsetData.adsets.data[i].targeting.flexible_spec && facebookAdsetData.adsets.data[i].targeting.flexible_spec.length > 0) {
+        const interests = facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests;
+        if (interests && interests.length > 0) {
+            for (let j = 0; j < interests.length; j++) {
+                const fb_flexible_spec = {
+                    adset_id: facebookAdsetData.adsets.data[i].id,
+                    interest_id: facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests[j].id,
+                    interest_name: facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests[j].name
+                }
+                populate_fb_adset_flexible_spec(fb_flexible_spec)
             }
-
-            
         }
-
     }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    const targetingData = facebookAdsetData.adsets.data[i].targeting;
-    const interestsArray = targetingData && targetingData.flexible_spec && targetingData.flexible_spec[0] && targetingData.flexible_spec[0].interests;
-    const numberOfInterests = interestsArray ? interestsArray.length : 1;
     
-    for (let j = 0; j < numberOfInterests; j++) {
-        const interest = interestsArray && interestsArray[j];
-        const interest_id = interest ? interest.id : 0;
-        const interest_name = interest ? interest.name : "none";
-    
-        const fbAdsetTargetingInterestData = {
-            //fb_adset_targeting_interests
-            adset_id: facebookAdsetData.adsets.data[i].id,
-            interest_id: interest_id,
-            interest_name: interest_name,
-        };
-    
-        populate_fb_adset_targeting_optimization_types(fbAdsetTargetingInterestData);
-    }
-    
-
-    const geo_locations = facebookAdsetData.adsets.data[i].targeting.geo_locations;
-    const countriesArray = geo_locations && geo_locations.countries;
-    const numberOfCountries = countriesArray ? countriesArray.length : 0;
-    
-    for (let j = 0; j < numberOfCountries; j++) {
-        const country = countriesArray && countriesArray[j];
-    
-        const fbAdsetTargetingCountryData = {
-            //fb_adset_targeting
-            adset_id: facebookAdsetData.adsets.data[i].id,
-            country: country || "none",
-        };
-    
-        populate_fb_adset_targeting(fbAdsetTargetingCountryData);
-    }
-    
-
-
-
-    
-    populate_fbadsets(adsetData);
   
   }
 }
