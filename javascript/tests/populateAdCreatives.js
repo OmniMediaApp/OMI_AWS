@@ -55,18 +55,18 @@ client.connect()
   async function populateAdCreatives(facebookCreativesData) {
     try {
       const query = `
-        INSERT INTO fb_ad_creatives 
-          (ad_creative_id, ad_id, campaign_id, account_id, name, degrees_of_freedom, effective_instagram_media_id, effective_object_story_id,
+        INSERT INTO fb_ad_creative 
+          (ad_creative_id, ad_id, campaign_id, account_id, name, degrees_of_freedom_spec, effective_instagram_media_id, effective_object_story_id,
             instagram_permalink_url, instagram_user_id, instagram_actor_id, object_type, status, thumbnail_id, thumbnail_url, title, url_tags,
-            authorization_category, body, call_to_action_type, omni_business_id, db_updated_at) 
+            authorization_category, body, call_to_action_type, omni_business_id) 
         VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+          ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         ON CONFLICT (ad_creative_id) DO UPDATE SET 
             ad_id = EXCLUDED.ad_id,
             campaign_id = EXCLUDED.campaign_id,
             account_id = EXCLUDED.account_id,
             name = EXCLUDED.name,
-            degrees_of_freedom = EXCLUDED.degrees_of_freedom,
+            degrees_of_freedom_spec = EXCLUDED.degrees_of_freedom_spec,
             effective_instagram_media_id = EXCLUDED.effective_instagram_media_id,
             effective_object_story_id = EXCLUDED.effective_object_story_id,
             instagram_permalink_url = EXCLUDED.instagram_permalink_url,
@@ -81,17 +81,16 @@ client.connect()
             authorization_category = EXCLUDED.authorization_category,
             body = EXCLUDED.body,
             call_to_action_type = EXCLUDED.call_to_action_type,
-            omni_business_id = EXCLUDED.omni_business_id,
-            db_updated_at = EXCLUDED.db_updated_at;
+            omni_business_id = EXCLUDED.omni_business_id;
         `;
 
         const values = [
             facebookCreativesData.ad_creative_id, facebookCreativesData.ad_id, facebookCreativesData.campaign_id, facebookCreativesData.account_id, 
-            facebookCreativesData.name, facebookCreativesData.degrees_of_freedom, facebookCreativesData.effective_instagram_media_id, facebookCreativesData.effective_object_story_id, 
+            facebookCreativesData.name, facebookCreativesData.degrees_of_freedom_spec, facebookCreativesData.effective_instagram_media_id, facebookCreativesData.effective_object_story_id, 
             facebookCreativesData.instagram_permalink_url, facebookCreativesData.instagram_user_id, facebookCreativesData.instagram_actor_id, facebookCreativesData.object_type, 
             facebookCreativesData.status, facebookCreativesData.thumbnail_id, facebookCreativesData.thumbnail_url, facebookCreativesData.title, 
             facebookCreativesData.url_tags, facebookCreativesData.authorization_category, facebookCreativesData.body, facebookCreativesData.call_to_action_type, 
-            facebookCreativesData.omni_business_id, facebookCreativesData.db_updated_at, 
+            facebookCreativesData.omni_business_id, 
         ];
   
       const result = await client.query(query, values);
@@ -116,33 +115,27 @@ async function main () {
 
   for (let i = 0; i < facebookCreativesData.adcreatives.data.length; i++) {
     const creativesData = {
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-        account_id: facebookCreativesData.id,
-
-      account_id: facebookCreativesData.id,
-      omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
-      db_updated_at: new Date(),
+        ad_creative_id: facebookCreativesData.adcreatives.data[i].id,
+        ad_id: facebookCreativesData.adcreatives.data[i].ad_id,   //DOESNT EXIST
+        campaign_id: facebookCreativesData.adcreatives.data[i].campaign_id,
+        account_id: facebookCreativesData.adcreatives.data[i].account_id,
+        name: facebookCreativesData.adcreatives.data[i].name,
+        degrees_of_freedom_spec: facebookCreativesData.adcreatives.data[i].degrees_of_freedom_spec,
+        effective_instagram_media_id: facebookCreativesData.adcreatives.data[i].effective_instagram_media_id,
+        effective_object_story_id: facebookCreativesData.adcreatives.data[i].effective_object_story_id,
+        instagram_permalink_url: facebookCreativesData.adcreatives.data[i].instagram_permalink_url,
+        instagram_user_id: facebookCreativesData.adcreatives.data[i].instagram_user_id,
+        instagram_actor_id: facebookCreativesData.adcreatives.data[i].instagram_actor_id,
+        object_type: facebookCreativesData.adcreatives.data[i].object_type,
+        status: facebookCreativesData.adcreatives.data[i].status,
+        thumbnail_id: facebookCreativesData.adcreatives.data[i].thumbnail_id,
+        thumbnail_url: facebookCreativesData.adcreatives.data[i].thumbnail_url,
+        title: facebookCreativesData.adcreatives.data[i].title,
+        url_tags: facebookCreativesData.adcreatives.data[i].url_tags,
+        authorization_category: facebookCreativesData.adcreatives.data[i].authorization_category,
+        body: facebookCreativesData.adcreatives.data[i].body,
+        call_to_action_type: facebookCreativesData.adcreatives.data[i].call_to_action_type,
+        omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
     }
     populateAdCreatives(creativesData);
   

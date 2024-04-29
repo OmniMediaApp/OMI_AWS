@@ -4,22 +4,24 @@ const axios = require('axios');
 
 
 
-// AWS RDS POSTGRESQL INSTANCE
-const dbOptions = {
-  user: 'postgres',
-  host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
-  database: 'postgres',
-  password: 'Omni2023!',
-  port: '5432',
-};
+// // AWS RDS POSTGRESQL INSTANCE
+// const dbOptions = {
+//   user: 'postgres',
+//   host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
+//   database: 'postgres',
+//   password: 'Omni2023!',
+//   port: '5432',
+// };
 
-// Create a new PostgreSQL client
-const client = new Client(dbOptions);
+// // Create a new PostgreSQL client
+// const postgres = new Client(dbOptions);
 
-// Connect to the PostgreSQL database
-client.connect()
-  .then(() => console.log('Connected to the database'))
-  .catch(err => console.error('Connection error', err.stack));
+// // Connect to the PostgreSQL database
+// postgres.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
+
+
 
 
 
@@ -52,7 +54,7 @@ client.connect()
 
 
 
-  async function populateCampaigns(facebookCampaignData) {
+  async function populateCampaigns(postgres, facebookCampaignData) {
     try {
       const query = `
         INSERT INTO fb_campaign 
@@ -87,7 +89,7 @@ client.connect()
         facebookCampaignData.omni_business_id, facebookCampaignData.db_updated_at
       ];
   
-      const result = await client.query(query, values);
+      const result = await postgres.query(query, values);
       console.log(`Inserted or updated campaign: ${facebookCampaignData.campaign_id} successfully`);
     } catch (err) {
       console.error('Insert or update error:', err.stack);
@@ -102,7 +104,7 @@ client.connect()
 
 
 
-async function main () {
+async function populateCampaignsMain (postgres, omniBusinessId  ) {
   const facebookCampaignData = await getCampaigns()
 
   //console.log(facebookCampaignData)
@@ -125,15 +127,16 @@ async function main () {
       updated_time: facebookCampaignData.campaigns.data[i].updated_time,
       name: facebookCampaignData.campaigns.data[i].name, 
       account_id: facebookCampaignData.id,
-      omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
+      omni_business_id: omniBusinessId,
       db_updated_at: new Date(),
     }
-    populateCampaigns(campaignData);
+    populateCampaigns(postgres, campaignData);
   
   }
 }
 
 
-main();
+//populateCampaignsMain();
+module.exports = populateCampaignsMain;
 
 

@@ -4,22 +4,22 @@ const axios = require('axios');
 
 
 
-// AWS RDS POSTGRESQL INSTANCE
-const dbOptions = {
-  user: 'postgres',
-  host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
-  database: 'postgres',
-  password: 'Omni2023!',
-  port: '5432',
-};
+// // AWS RDS POSTGRESQL INSTANCE
+// const dbOptions = {
+//   user: 'postgres',
+//   host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
+//   database: 'postgres',
+//   password: 'Omni2023!',
+//   port: '5432',
+// };
 
-// Create a new PostgreSQL client
-const client = new Client(dbOptions);
+// // Create a new PostgreSQL client
+// const postgres = new Client(dbOptions);
 
-// Connect to the PostgreSQL database
-client.connect()
-  .then(() => console.log('Connected to the database'))
-  .catch(err => console.error('Connection error', err.stack));
+// // Connect to the PostgreSQL database
+// postgres.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
 
 
 
@@ -27,11 +27,11 @@ client.connect()
   
 
 
-  async function getAdAccounts () {
+  async function getAdAccounts (accessToken) {
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/499682821437696';
       const fields = 'owned_ad_accounts{name,campaigns,account_status,business_name,created_time,existing_customers,funding_source,funding_source_details,id,is_personal,is_prepay_account,line_numbers,owner,spend_cap,timezone_id,timezone_name,timezone_offset_hours_utc}';
-      const accessToken = 'EAAMJLvHGvzkBO2DmjIBVZA65h71ksz2JCQWaPlVmF6vyZCZBmDwhj2c2UHh6CS0tX1vljztwyHaExxtQOjzEoRJwNaG2OeNk1ZBMZBQ23V38XhXZCVsdKqucwnhT3KAQ9cKPU24mpaDMWc7ZAIdKLOvt1iZBsrraGZABn34gf2yDZAC3TvpQSZBMDQZBVn0XYBhk9WfEnnnR09ojte6pGGewVeCm0yVjZCZB6ta8OlUZCTZCKs6H3QZDZD'; // Replace with your Facebook access token
+      //const accessToken = 'EAAMJLvHGvzkBO2DmjIBVZA65h71ksz2JCQWaPlVmF6vyZCZBmDwhj2c2UHh6CS0tX1vljztwyHaExxtQOjzEoRJwNaG2OeNk1ZBMZBQ23V38XhXZCVsdKqucwnhT3KAQ9cKPU24mpaDMWc7ZAIdKLOvt1iZBsrraGZABn34gf2yDZAC3TvpQSZBMDQZBVn0XYBhk9WfEnnnR09ojte6pGGewVeCm0yVjZCZB6ta8OlUZCTZCKs6H3QZDZD'; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -52,7 +52,7 @@ client.connect()
 
 
 
-  async function populateAdAccounts(facebookAdAccountData) {
+  async function populateAdAccounts(postgres, facebookAdAccountData) {
     try {
       const query = `
         INSERT INTO fb_ad_account 
@@ -83,7 +83,7 @@ client.connect()
         facebookAdAccountData.timezone_offset_hours_utc, facebookAdAccountData.omni_business_id
       ];
   
-      const result = await client.query(query, values);
+      const result = await postgres.query(query, values);
       console.log(`Inserted or updated ad account: ${facebookAdAccountData.id} successfully`);
     } catch (err) {
       console.error('Insert or update error:', err.stack);
@@ -98,8 +98,8 @@ client.connect()
 
 
 
-async function main () {
-  const facebookAdAccountData = await getAdAccounts()
+async function populateAdAccountsMain (postgres, omniBusinessId, accessToken) {
+  const facebookAdAccountData = await getAdAccounts(accessToken)
 
   //console.log(facebookAdAccountData)
 
@@ -119,15 +119,17 @@ async function main () {
         timezone_id: facebookAdAccountData.owned_ad_accounts.data[i].timezone_id,
         timezone_name: facebookAdAccountData.owned_ad_accounts.data[i].timezone_name,
         timezone_offset_hours_utc: facebookAdAccountData.owned_ad_accounts.data[i].timezone_offset_hours_utc,
-        omni_business_id: "b_zfPwbkxKMDfeO1s9fn5TejRILh34hd",
+        omni_business_id: omniBusinessId,
 
     }
-    populateAdAccounts(campaignData);
+    populateAdAccounts(postgres, campaignData, accessToken);
   
   }
 }
 
 
-main();
+//populateAdAccountsMain();
+
+module.exports = populateAdAccountsMain;
 
 
