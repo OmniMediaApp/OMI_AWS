@@ -1,27 +1,36 @@
+require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
 
 
-
 // AWS RDS POSTGRESQL INSTANCE
 const dbOptions = {
-  user: 'postgres',
-  host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
-  database: 'postgres',
-  password: 'Omni2023!',
-  port: '5432',
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 };
 
 // Create a new PostgreSQL client
 const client = new Client(dbOptions);
 
 // Connect to the PostgreSQL database
-client.connect()
-  .then(() => console.log('Connected to the database'))
-  .catch(err => console.error('Connection error', err.stack));
+// client.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
 
 
+  async function connectToDatabase() {
+    try {
+      await client.connect();
+      console.log('Connected to the database');
+    } catch (err) {
+      console.error('Database connection error', err.stack);
+      process.exit(1); // Exit the process with an error code
+    }
+  }
 
 
   
@@ -31,7 +40,7 @@ client.connect()
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/1076939923394031?';
       const fields = 'ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video';
-      const accessToken = 'EAAMJLvHGvzkBOZCZBouUyWXYyFLoedK21YTOAd2azgGUI7Ps5t5qNITlwrv7cddAptjqlDEFSeKp8IKZAEiahsYcIi6YlNm8HRZCsr2AWF0XWIjeqZA6amIWL74L8vsJQjhZC1KU3EI1sHl3LNXlzBcE5P4DH76gDPSjkobsLJZBlbiQmU1fzfuHXXP5ONKsJNIEYm1JRn6xQAZA8GOVPJqkXjXcrTAbNrRjrZB2DE9rkOgZDZD'; // Replace with your Facebook access token
+      const accessToken =  process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -192,21 +201,17 @@ client.connect()
 
 
 async function main () {
+    await connectToDatabase();
+    try {
     const facebookMediaData = await getMedia()
 
 
     //for (let i = 0; i < facebookMediaData.length; i++) {
     //for (let i = 0; i < 2; i++) {
 
-        const match = facebookMediaData.embed_html.match(/href=([^&"]+)/);
+    const match = facebookMediaData.embed_html.match(/href=([^&"]+)/);
 
-        let video_link = '';
-        if (match && match.length > 1) {
-            const encodedHref = match[1]; // Extract the encoded portion of the URL
-            video_link = decodeURIComponent(encodedHref); // Decode the URL
-        } else {
-            console.log("href attribute not found or invalid HTML string.");
-        }
+    let video_link = match && match.length > 1 ? decodeURIComponent(match[1]) : '';
 
         const mediaData = {
             video_id: facebookMediaData.id,
@@ -237,49 +242,51 @@ async function main () {
 
     await populate_fbmedia(mediaData);
 
-
-    
-    for (let j = 0; j < facebookMediaData.format.length; j++) {
+    if (facebookMediaData.format && Array.isArray(facebookMediaData.format)) {
+      for (const format of facebookMediaData.format) {
         const fbMediaFormatData = {
-            video_id: facebookMediaData.id,
-            embed_html: facebookMediaData.format[j].embed_html,
-            filter: facebookMediaData.format[j].filter,
-            height: facebookMediaData.format[j].height,
-            picture: facebookMediaData.format[j].picture,
-            width: facebookMediaData.format[j].width,
-        }        
-        populate_fb_media_formats(fbMediaFormatData)
+          video_id: facebookMediaData.id,
+          embed_html: format.embed_html,
+          filter: format.filter,
+          height: format.height,
+          picture: format.picture,
+          width: format.width
+        };
+        await populate_fb_media_formats(fbMediaFormatData);
+      }
     }
 
-
     const fbMediaStatusData = {
-        video_id: facebookMediaData.id,
-        video_status: facebookMediaData.status.video_status,
-        uploading_status: facebookMediaData.status.uploading_phase.status,
-        processing_status: facebookMediaData.status.processing_phase.status,
-        publishing_status: facebookMediaData.status.publishing_phase.status,
-    }        
-    populate_fb_media_status(fbMediaStatusData)
-    
+      video_id: facebookMediaData.id,
+      video_status: facebookMediaData.status.video_status,
+      uploading_status: facebookMediaData.status.uploading_phase.status,
+      processing_status: facebookMediaData.status.processing_phase.status,
+      publishing_status: facebookMediaData.status.publishing_phase.status
+    };
+    await populate_fb_media_status(fbMediaStatusData);
 
     const fbMediaPrivacyData = {
-        video_id: facebookMediaData.id,
-        allow: facebookMediaData.privacy.allow,
-        deny: facebookMediaData.privacy.deny,
-        description: facebookMediaData.privacy.description,
-        friends: facebookMediaData.privacy.friends,
-        networks: facebookMediaData.privacy.networks,
-        value: facebookMediaData.privacy.value,
-    }        
-    populate_fb_media_privacy(fbMediaPrivacyData)
-    
+      video_id: facebookMediaData.id,
+      allow: facebookMediaData.privacy.allow,
+      deny: facebookMediaData.privacy.deny,
+      description: facebookMediaData.privacy.description,
+      friends: facebookMediaData.privacy.friends,
+      networks: facebookMediaData.privacy.networks,
+      value: facebookMediaData.privacy.value
+    };
+    await populate_fb_media_privacy(fbMediaPrivacyData);
+  } catch (error) {
+    console.error('Error during main execution:', error);
+    process.exit(1);
+  } finally {
+    await client.end();
+    console.log('Database connection closed');
+  }
 
-
-
-    
-  
-  //}
 }
+
+
+
 
 
 main();

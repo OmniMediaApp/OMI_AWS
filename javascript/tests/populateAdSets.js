@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
@@ -6,22 +7,31 @@ const axios = require('axios');
 
 // AWS RDS POSTGRESQL INSTANCE
 const dbOptions = {
-  user: 'postgres',
-  host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
-  database: 'postgres',
-  password: 'Omni2023!',
-  port: '5432',
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 };
 
 // Create a new PostgreSQL client
 const client = new Client(dbOptions);
 
 // Connect to the PostgreSQL database
-client.connect()
-  .then(() => console.log('Connected to the database'))
-  .catch(err => console.error('Connection error', err.stack));
+// client.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
 
 
+async function connectToDatabase() {
+  try {
+    await client.connect();
+    console.log('Connected to the database');
+  } catch (err) {
+    console.error('Database connection error', err.stack);
+    process.exit(1); // Exit the process with an error code
+  }
+}
 
 
   
@@ -31,7 +41,7 @@ client.connect()
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
       const fields = 'account_id,adsets{name,id,campaign,budget_remaining,account_id,adset_schedule,bid_adjustments,bid_amount,bid_strategy,bid_info,campaign_id,created_time,daily_budget,daily_spend_cap,end_time,lifetime_budget,lifetime_spend_cap,recommendations,promoted_object,start_time,source_adset,source_adset_id,rf_prediction_id,review_feedback,status,targeting,targeting_optimization_types,updated_time}';
-      const accessToken = 'EAAMJLvHGvzkBO5WXFaVRKoJ78NHa0BTajblL6P3YXacZB5QvTrWKDAm1Vg8AoTyOW1EAGowebjr6LJ2pM90rDoGZA3OY02cHtjigaZBzbDxLPgdsLIlZAnyp6JDvQzBZBuKNki3IYkRL9fnEr2ks6mZBBLvsV3jJ7q05LqZCmXERZCgMijiEGTPVZBwVGunq775sS14eetq1vGhZAMVG5SKXrFQ74x8KRhthZCPL0UZCsUQZCoVkZD'; // Replace with your Facebook access token
+      const accessToken = process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -42,13 +52,20 @@ client.connect()
       return response.data
     } catch(error) {
       console.error('Error fetching data:', error);
+      process.exit(1);
     }
   }
 
 
 
 
-
+  async function adsetEsists(campaignID){
+    const query = `
+    SELECT 1 FROM fb_ad WHERE adset_id = $1
+    `;
+    const result = await client.query(query, [campaignID]);
+    return result.rowCount > 0;
+}
 
   async function populate_fbadsets(facebookAdsetData) {
     try {
@@ -183,91 +200,107 @@ client.connect()
 
 
 async function main () {
-    const facebookAdsetData = await getAdsets()
 
-
-    for (let i = 0; i < facebookAdsetData.adsets.data.length; i++) {
-    //for (let i = 0; i < 2; i++) {
-        const adsetData = {
-        //fb_adsets
-        adset_id: facebookAdsetData.adsets.data[i].id,
-        name: facebookAdsetData.adsets.data[i].name,
-        campaign_id: facebookAdsetData.adsets.data[i].campaign_id,
-        budget_remaining: facebookAdsetData.adsets.data[i].budget_remaining,
-        account_id: "act_" + facebookAdsetData.adsets.data[i].account_id,
-        adset_schedule: facebookAdsetData.adsets.data[i].adset_schedule,
-        bid_adjustment: facebookAdsetData.adsets.data[i].bid_adjustment,
-        bid_amount: facebookAdsetData.adsets.data[i].bid_amount,
-        bid_strategy: facebookAdsetData.adsets.data[i].bid_strategy,
-        bid_info: facebookAdsetData.adsets.data[i].bid_info,
-        created_time: facebookAdsetData.adsets.data[i].created_time,
-        daily_budget: facebookAdsetData.adsets.data[i].daily_budget,
-        daily_spend_cap: facebookAdsetData.adsets.data[i].daily_spend_cap,
-        end_time: facebookAdsetData.adsets.data[i].end_time,
-        lifetime_budget: facebookAdsetData.adsets.data[i].lifetime_budget,
-        lifetime_spend_cap: facebookAdsetData.adsets.data[i].lifetime_spend_cap,
-        recommendations: facebookAdsetData.adsets.data[i].recommendations,
-        start_time: facebookAdsetData.adsets.data[i].start_time,
-        source_adset: facebookAdsetData.adsets.data[i]?.source_adset || '',
-        source_adset_id: facebookAdsetData.adsets.data[i].source_adset_id,
-        rf_prediction_id: facebookAdsetData.adsets.data[i].rf_prediction_id,
-        review_facebook: facebookAdsetData.adsets.data[i].review_facebook,
-        status: facebookAdsetData.adsets.data[i].status,
-        targeting: facebookAdsetData.adsets.data[i].targeting,
-        targeting_age_min: facebookAdsetData.adsets.data[i].targeting.age_min,
-        targeting_age_max: facebookAdsetData.adsets.data[i].targeting.age_max,
-        updated_time: facebookAdsetData.adsets.data[i].updated_time,
-        omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
-        ad_ids: facebookAdsetData.adsets.data[i].ad_ids,
-        db_updated_at: new Date(),
-        pixel_id: facebookAdsetData.adsets.data[i].promoted_object.pixel_id,
-        custom_event_type: facebookAdsetData.adsets.data[i].promoted_object.custom_event_type,
-        age_max: facebookAdsetData.adsets.data[i].targeting.age_max,
-        age_min: facebookAdsetData.adsets.data[i].targeting.age_min,
-        geo_countries: facebookAdsetData.adsets.data[i].targeting.geo_locations.countries,
-        location_types: facebookAdsetData.adsets.data[i].targeting.geo_locations.location_types,
-        brand_safety_content_filter_levels: facebookAdsetData.adsets.data[i].targeting.brand_safety_content_filter_levels,
-        targeting_automation: facebookAdsetData.adsets.data[i].targeting.targeting_automation,
-            
-
-    }
-
-    await populate_fbadsets(adsetData);
-
-
-    
-    for (let j = 0; j < facebookAdsetData.adsets.data[i].targeting_optimization_types.length; j++) {
-        const fbAdsetTargetingOptimizationTypesData = {
-            adset_id: facebookAdsetData.adsets.data[i].id,
-            key: facebookAdsetData.adsets.data[i].targeting_optimization_types[j].key,
-            value: facebookAdsetData.adsets.data[i].targeting_optimization_types[j].value,
-        }        
-        populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData)
-    }
-
-
-    if (facebookAdsetData.adsets.data[i].targeting.flexible_spec && facebookAdsetData.adsets.data[i].targeting.flexible_spec.length > 0) {
-        const interests = facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests;
-        if (interests && interests.length > 0) {
-            for (let j = 0; j < interests.length; j++) {
-                const fb_flexible_spec = {
-                    adset_id: facebookAdsetData.adsets.data[i].id,
-                    interest_id: facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests[j].id,
-                    interest_name: facebookAdsetData.adsets.data[i].targeting.flexible_spec[0].interests[j].name
-                }
-                populate_fb_adset_flexible_spec(fb_flexible_spec)
-            }
-        }
-    }
-
-
-
-    
-  
+  await connectToDatabase();
+  const facebookAdsetData = await getAdsets();
+  if (!facebookAdsetData || !facebookAdsetData.adsets) {
+    console.error('Invalid ad adset data fetched.'); // Exit early if there is no data
+    return; // Add a return statement to prevent further execution
   }
+
+    for (const adset of facebookAdsetData.adsets.data) {
+    //for (let i = 0; i < 2; i++) {
+      const adsetData = {
+        // fb_adsets
+        adset_id: adset.id,
+        name: adset.name,
+        campaign_id: adset.campaign_id,
+        budget_remaining: adset.budget_remaining,
+        account_id: "act_" + adset.account_id,
+        adset_schedule: adset.adset_schedule,
+        bid_adjustment: adset.bid_adjustment,
+        bid_amount: adset.bid_amount,
+        bid_strategy: adset.bid_strategy,
+        bid_info: adset.bid_info,
+        created_time: adset.created_time,
+        daily_budget: adset.daily_budget,
+        daily_spend_cap: adset.daily_spend_cap,
+        end_time: adset.end_time,
+        lifetime_budget: adset.lifetime_budget,
+        lifetime_spend_cap: adset.lifetime_spend_cap,
+        recommendations: adset.recommendations,
+        start_time: adset.start_time,
+        source_adset: adset.source_adset || '',
+        source_adset_id: adset.source_adset_id,
+        rf_prediction_id: adset.rf_prediction_id,
+        review_facebook: adset.review_facebook,
+        status: adset.status,
+        targeting: adset.targeting,
+        targeting_age_min: adset.targeting ? adset.targeting.age_min : undefined,
+        targeting_age_max: adset.targeting ? adset.targeting.age_max : undefined,
+        updated_time: adset.updated_time,
+        omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
+        ad_ids: adset.ad_ids,
+        db_updated_at: new Date(),
+        pixel_id: adset.promoted_object ? adset.promoted_object.pixel_id : undefined,
+        custom_event_type: adset.promoted_object ? adset.promoted_object.custom_event_type : undefined,
+        age_max: adset.targeting ? adset.targeting.age_max : undefined,
+        age_min: adset.targeting ? adset.targeting.age_min : undefined,
+        geo_countries: adset.targeting && adset.targeting.geo_locations ? adset.targeting.geo_locations.countries : undefined,
+        location_types: adset.targeting && adset.targeting.geo_locations ? adset.targeting.geo_locations.location_types : undefined,
+        brand_safety_content_filter_levels: adset.targeting ? adset.targeting.brand_safety_content_filter_levels : undefined,
+        targeting_automation: adset.targeting ? adset.targeting.targeting_automation : undefined,
+      };
+    
+     
+    
+
+      await populate_fbadsets(adsetData).catch((error) => {
+        console.error(`Error populating adset ${adset.id}: `, error);
+      });
+    
+    if (adset.targeting_optimization_types) {
+      for (const type of adset.targeting_optimization_types) {
+        const fbAdsetTargetingOptimizationTypesData = {
+          adset_id: adset.id,
+          key: type.key,
+          value: type.value,
+        };
+        
+        // Await the function and handle errors
+        await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData).catch((error) => {
+          console.error(`Error populating targeting optimization types for adset ${adset.id}: `, error);
+        });
+      }
+    }
+
+
+    if (adset.targeting && adset.targeting.flexible_spec) {
+      for (const spec of adset.targeting.flexible_spec) {
+        if (spec.interests) {
+          for (const interest of spec.interests) {
+            const fbAdsetFlexibleSpecData = {
+              adset_id: adset.id,
+              interest_id: interest.id,
+              interest_name: interest.name,
+            };
+
+            // Await the function and handle errors
+            await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData).catch((error) => {
+              console.error(`Error populating flexible spec for adset ${adset.id}: `, error);
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Close the database connection
+  await client.end();
 }
 
-
-main();
-
+main().catch((error) => {
+  console.error('An error occurred in the main function: ', error);
+  process.exit(1); // Exit the process with an error code
+});
 

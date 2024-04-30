@@ -1,31 +1,39 @@
+require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
 
 
 
-// // AWS RDS POSTGRESQL INSTANCE
-// const dbOptions = {
-//   user: 'postgres',
-//   host: 'omnirds.cluster-chcpmc0xmfre.us-east-2.rds.amazonaws.com',
-//   database: 'postgres',
-//   password: 'Omni2023!',
-//   port: '5432',
-// };
+// AWS RDS POSTGRESQL INSTANCE
+const dbOptions = {
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+};
 
-// // Create a new PostgreSQL client
-// const postgres = new Client(dbOptions);
+// Create a new PostgreSQL client
+const client = new Client(dbOptions);
 
-// // Connect to the PostgreSQL database
-// postgres.connect()
+// Connect to the PostgreSQL database
+// client.connect()
 //   .then(() => console.log('Connected to the database'))
 //   .catch(err => console.error('Connection error', err.stack));
 
 
 
 
-
-
+  async function connectToDatabase() {
+    try {
+      await client.connect();
+      console.log('Connected to the database');
+    } catch (err) {
+      console.error('Database connection error', err.stack);
+      process.exit(1); // Exit the process with an error code
+    }
+  }
   
 
 
@@ -33,7 +41,7 @@ const axios = require('axios');
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
       const fields = 'created_time,id,is_personal,campaigns{name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
-      const accessToken = 'EAAMJLvHGvzkBO2DmjIBVZA65h71ksz2JCQWaPlVmF6vyZCZBmDwhj2c2UHh6CS0tX1vljztwyHaExxtQOjzEoRJwNaG2OeNk1ZBMZBQ23V38XhXZCVsdKqucwnhT3KAQ9cKPU24mpaDMWc7ZAIdKLOvt1iZBsrraGZABn34gf2yDZAC3TvpQSZBMDQZBVn0XYBhk9WfEnnnR09ojte6pGGewVeCm0yVjZCZB6ta8OlUZCTZCKs6H3QZDZD'; // Replace with your Facebook access token
+      const accessToken = process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -50,12 +58,8 @@ const axios = require('axios');
 
 
 
-
-
-
-
-  async function populateCampaigns(postgres, facebookCampaignData) {
-    try {
+  async function populateCampaigns(facebookCampaignData) {
+    
       const query = `
         INSERT INTO fb_campaign 
           (campaign_id, status, created_time, daily_budget, objective, start_time, stop_time, buying_type, budget_remaining, 
@@ -85,11 +89,12 @@ const axios = require('axios');
         facebookCampaignData.campaign_id, facebookCampaignData.status, facebookCampaignData.created_time, facebookCampaignData.daily_budget, 
         facebookCampaignData.objective, facebookCampaignData.start_time, facebookCampaignData.stop_time, facebookCampaignData.buying_type, 
         facebookCampaignData.budget_remaining, facebookCampaignData.bid_strategy, facebookCampaignData.primary_attribution, facebookCampaignData.source_campaign, 
-        facebookCampaignData.special_ad_categories, facebookCampaignData.updated_time, facebookCampaignData.name, facebookCampaignData.account_id, 
+        facebookCampaignData.special_ad_categories, facebookCampaignData.updated_time, facebookCampaignData.name, facebookCampaignData.ad_account_id, 
         facebookCampaignData.omni_business_id, facebookCampaignData.db_updated_at
       ];
-  
-      const result = await postgres.query(query, values);
+
+      try {
+      const result = await client.query(query, values);
       console.log(`Inserted or updated campaign: ${facebookCampaignData.campaign_id} successfully`);
     } catch (err) {
       console.error('Insert or update error:', err.stack);
@@ -103,40 +108,50 @@ const axios = require('axios');
 
 
 
+async function main () {
+  await connectToDatabase();
+try{
+  const facebookCampaignData = await getCampaigns();
 
-async function populateCampaignsMain (postgres, omniBusinessId  ) {
-  const facebookCampaignData = await getCampaigns()
+  if (!facebookCampaignData || !facebookCampaignData.campaigns) {
+     throw new Error('Invalid ad account data fetched.');
+  }
 
-  //console.log(facebookCampaignData)
-
-  for (let i = 0; i < facebookCampaignData.campaigns.data.length; i++) {
+  for (const campaign of facebookCampaignData.campaigns.data) {
     const campaignData = {
-      campaign_id: facebookCampaignData.campaigns.data[i].id,
-      status: facebookCampaignData.campaigns.data[i].status,
-      created_time: facebookCampaignData.campaigns.data[i].created_time,
-      daily_budget: facebookCampaignData.campaigns.data[i].daily_budget / 100 || '',
-      objective: facebookCampaignData.campaigns.data[i].objective,
-      start_time: facebookCampaignData.campaigns.data[i].start_time,
-      stop_time: facebookCampaignData.campaigns.data[i].stop_time,
-      buying_type: facebookCampaignData.campaigns.data[i].buying_type,
-      budget_remaining: facebookCampaignData.campaigns.data[i].budget_remaining / 100 || '',
-      bid_strategy: facebookCampaignData.campaigns.data[i].bid_strategy || '',
-      primary_attribution: facebookCampaignData.campaigns.data[i].primary_attribution,
-      source_campaign: facebookCampaignData.campaigns.data[i].source_campaign || '',
-      special_ad_categories: facebookCampaignData.campaigns.data[i].special_ad_categories,
-      updated_time: facebookCampaignData.campaigns.data[i].updated_time,
-      name: facebookCampaignData.campaigns.data[i].name, 
-      account_id: facebookCampaignData.id,
-      omni_business_id: omniBusinessId,
+      campaign_id: campaign.id,
+      status: campaign.status,
+      created_time: campaign.created_time,
+      daily_budget: campaign.daily_budget / 100 || '',
+      objective: campaign.objective,
+      start_time: campaign.start_time,
+      stop_time: campaign.stop_time,
+      buying_type: campaign.buying_type,
+      budget_remaining: campaign.budget_remaining / 100 || '',
+      bid_strategy: campaign.bid_strategy || '',
+      primary_attribution: campaign.primary_attribution,
+      source_campaign: campaign.source_campaign || '',
+      special_ad_categories: campaign.special_ad_categories,
+      updated_time: campaign.updated_time,
+      name: campaign.name, 
+      ad_account_id: facebookCampaignData.id, // Assuming this is the correct association
+      omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
       db_updated_at: new Date(),
     }
-    populateCampaigns(postgres, campaignData);
-  
+
+    // If order matters or you want to handle errors per campaign, await here
+    await populateCampaigns(campaignData).catch((error) => {
+      console.error(`Error populating campaign ${campaignData.campaign_id}: `, error);
+    });
   }
+} catch (error) {
+  console.error('An error occurred in the main flow', error);
+} finally {
+  await client.end(); // Close the client connection at the end of all operations
+}
+  // Consider adding client.end() here to close the connection after all operations are done
 }
 
-
-//populateCampaignsMain();
-module.exports = populateCampaignsMain;
+main();
 
 
