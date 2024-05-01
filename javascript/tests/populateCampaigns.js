@@ -40,7 +40,7 @@ const client = new Client(dbOptions);
   async function getCampaigns () {
     try {
       const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
-      const fields = 'created_time,id,is_personal,campaigns{name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
+      const fields = 'created_time,id,is_personal,campaigns.limit(100){name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
       const accessToken = process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
