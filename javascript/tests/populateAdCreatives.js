@@ -25,7 +25,7 @@ async function connectToDatabase() {
 async function getAdCreatives() {
     try {
         const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
-        const fields = 'adcreatives{id,authorization_category,body,branded_content,call_to_action_type,account_id,categorization_criteria,category_media_source,degrees_of_freedom_spec,effective_instagram_media_id,effective_instagram_story_id,effective_object_story_id,facebook_branded_content,image_crops,image_hash,image_url,instagram_branded_content,instagram_permalink_url,instagram_story_id,instagram_user_id,instagram_actor_id,link_url,name,object_id,object_store_url,object_type,recommender_settings,status,template_url,thumbnail_id,thumbnail_url,title,url_tags,video_id}';
+        const fields = 'ads{adcreatives{id,authorization_category,body,branded_content,call_to_action_type,account_id,categorization_criteria,category_media_source,degrees_of_freedom_spec,effective_instagram_media_id,effective_instagram_story_id,effective_object_story_id,facebook_branded_content,image_crops,image_hash,image_url,instagram_branded_content,instagram_permalink_url,instagram_story_id,instagram_user_id,instagram_actor_id,link_url,name,object_id,object_store_url,object_type,recommender_settings,status,template_url,thumbnail_id,thumbnail_url,title,url_tags,video_id}}';
         const accessToken = process.env.FB_ACCESS_TOKEN;
         
         const response = await axios.get(apiUrl, {
@@ -34,7 +34,9 @@ async function getAdCreatives() {
                 access_token: accessToken
             }
         });
+        console.log(response.data);
         return response.data;
+
     } catch (error) {
         console.error('Error fetching data:', error);
         return null;
@@ -91,36 +93,37 @@ async function populateAdCreatives(facebookCreativesData) {
 async function main() {
     await connectToDatabase();
     const facebookCreativesData = await getAdCreatives();
-    if (!facebookCreativesData || !facebookCreativesData.adcreatives || !facebookCreativesData.adcreatives.data) {
+    if (!facebookCreativesData || !facebookCreativesData.ads.data[0] || !facebookCreativesData.ads.data[0].adcreatives.data[0]) {
         console.error('Invalid or missing creative data');
         return;  // Exit if no data to process
     }
-
-    for (const creative of facebookCreativesData.adcreatives.data) {
-        const creativeData = {
-            ad_creative_id: creative.id,
-            ad_id: creative.ad_id, // Assuming ad_id is present, handle accordingly if it's not
-            campaign_id: creative.campaign_id, // Same assumption as ad_id
-            account_id: creative.account_id,
-            name: creative.name,
-            degrees_of_freedom_spec: creative.degrees_of_freedom_spec,
-            effective_instagram_media_id: creative.effective_instagram_media_id,
-            effective_object_story_id: creative.effective_object_story_id,
-            instagram_permalink_url: creative.instagram_permalink_url,
-            instagram_user_id: creative.instagram_user_id,
-            instagram_actor_id: creative.instagram_actor_id,
-            object_type: creative.object_type,
-            status: creative.status,
-            thumbnail_id: creative.thumbnail_id,
-            thumbnail_url: creative.thumbnail_url,
-            title: creative.title,
-            url_tags: creative.url_tags,
-            authorization_category: creative.authorization_category,
-            body: creative.body,
-            call_to_action_type: creative.call_to_action_type,
-            omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
-        };
-
+   
+        for (const creative of facebookCreativesData.ads.data) {
+             const creativeData = {
+                ad_id: creative.id,
+                ad_creative_id: creative.adcreatives.data.id,
+                 // Assuming ad_id is present, handle accordingly if it's not
+                campaign_id: creative.campaign_id, // Same assumption as ad_id
+                account_id: creative.account_id,
+                name: creative.name,
+                degrees_of_freedom_spec: creative.degrees_of_freedom_spec,
+                effective_instagram_media_id: creative.effective_instagram_media_id,
+                effective_object_story_id: creative.effective_object_story_id,
+                instagram_permalink_url: creative.instagram_permalink_url,
+                instagram_user_id: creative.instagram_user_id,
+                instagram_actor_id: creative.instagram_actor_id,
+                object_type: creative.object_type,
+                status: creative.status,
+                thumbnail_id: creative.thumbnail_id,
+                thumbnail_url: creative.thumbnail_url,
+                title: creative.title,
+                url_tags: creative.url_tags,
+                authorization_category: creative.authorization_category,
+                body: creative.body,
+                call_to_action_type: creative.call_to_action_type,
+                omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
+            };
+        
         try {
             await populateAdCreatives(creativeData);
         } catch (error) {
