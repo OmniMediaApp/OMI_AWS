@@ -3,39 +3,39 @@ const { Client } = require('pg');
 const axios = require('axios');
 
 // Log the environment variables for database connection
-console.log("Environment Variables:", {
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-});
+// console.log("Environment Variables:", {
+//   user: process.env.DB_USER,
+//   host: process.env.DB_HOST,
+//   database: process.env.DB_DATABASE,
+//   password: process.env.DB_PASSWORD,
+//   port: process.env.DB_PORT,
+// });
 
-const dbOptions = {
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-};
+// const dbOptions = {
+//   user: process.env.DB_USER,
+//   host: process.env.DB_HOST,
+//   database: process.env.DB_DATABASE,
+//   password: process.env.DB_PASSWORD,
+//   port: process.env.DB_PORT,
+// };
 
-const client = new Client(dbOptions);
+// const client = new Client(dbOptions);
 
-async function connectToDatabase() {
+// async function connectToDatabase() {
+//   try {
+//     await client.connect();
+//     console.log('Connected to the database');
+//   } catch (err) {
+//     console.error('Database connection error', err.stack);
+//     process.exit(1);
+//   }
+// }
+
+async function getAdAccounts(fb_adAccountID, accessToken) {
   try {
-    await client.connect();
-    console.log('Connected to the database');
-  } catch (err) {
-    console.error('Database connection error', err.stack);
-    process.exit(1);
-  }
-}
-
-async function getAdAccounts() {
-  try {
-    const apiUrl = 'https://graph.facebook.com/v19.0/499682821437696';
-    const fields = 'owned_ad_accounts{name,campaigns,account_status,business_name,created_time,existing_customers,funding_source,funding_source_details,id,is_personal,is_prepay_account,line_numbers,owner,spend_cap,timezone_id,timezone_name,timezone_offset_hours_utc}';
-    const accessToken = process.env.FB_ACCESS_TOKEN;
+    const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
+    const fields = `name,business,account_status,business_name,created_time,existing_customers,funding_source,funding_source_details,id,is_personal,is_prepay_account,line_numbers,owner,spend_cap,timezone_id,timezone_name,timezone_offset_hours_utc`;
+ 
 
     const response = await axios.get(apiUrl, {
       params: {
@@ -49,7 +49,7 @@ async function getAdAccounts() {
   }
 }
 
-async function populateAdAccounts(facebookAdAccountData) {
+async function populateAdAccounts(postgres, facebookAdAccountData) {
   const query = `
     INSERT INTO fb_ad_account
       (account_id, name, account_status, business_name, created_time, funding_source, funding_source_details, is_personal, 
@@ -80,47 +80,51 @@ async function populateAdAccounts(facebookAdAccountData) {
   ];
 
   try {
-    await client.query(query, values);
+    await postgres.query(query, values);
     console.log(`Inserted or updated ad account: ${facebookAdAccountData.account_id} successfully`);
   } catch (err) {
     console.error('Insert or update error:', err.stack);
+    process.exit(1);
   }
 }
 
-async function main() {
-  await connectToDatabase();
+async function populateAdAccountsMain(postgres, omniBusinessId, fb_adAccountID, accessToken) {
+  
 
   try {
-    const facebookAdAccountData = await getAdAccounts();
-    if (!facebookAdAccountData || !facebookAdAccountData.owned_ad_accounts) {
+    const facebookAdAccountData = await getAdAccounts(fb_adAccountID, accessToken);
+    // console.log({facebookAdAccountData})
+    if (!facebookAdAccountData) {
       throw new Error('Invalid ad account data fetched.');
+      
     }
 
-    for (const adAccount of facebookAdAccountData.owned_ad_accounts.data) {
-      const campaignData = {
-        account_id: adAccount.id,
-        name: adAccount.name,
-        account_status: adAccount.account_status,
-        business_name: adAccount.business_name,
-        created_time: adAccount.created_time,
-        funding_source: adAccount.funding_source,
-        funding_source_details: adAccount.funding_source_details,
-        is_personal: adAccount.is_personal,
-        is_prepay_account: adAccount.is_prepay_account,
-        owner: adAccount.owner,
-        spend_cap: adAccount.spend_cap,
-        timezone_id: adAccount.timezone_id,
-        timezone_name: adAccount.timezone_name,
-        timezone_offset_hours_utc: adAccount.timezone_offset_hours_utc,
-        omni_business_id: "b_zfPwbkxKMDfeO1s9fn5TejRILh34hd",
+      
+      const adAccountData = {
+        account_id: facebookAdAccountData.id,
+        name: facebookAdAccountData.name,
+        account_status: facebookAdAccountData.account_status,
+        business_name: facebookAdAccountData.business_name,
+        created_time: facebookAdAccountData.created_time,
+        funding_source: facebookAdAccountData.funding_source,
+        funding_source_details: facebookAdAccountData.funding_source_details,
+        is_personal: facebookAdAccountData.is_personal,
+        is_prepay_account: facebookAdAccountData.is_prepay_account,
+        owner: facebookAdAccountData.owner,
+        spend_cap: facebookAdAccountData.spend_cap,
+        timezone_id: facebookAdAccountData.timezone_id,
+        timezone_name: facebookAdAccountData.timezone_name,
+        timezone_offset_hours_utc: facebookAdAccountData.timezone_offset_hours_utc,
+        fb_business_id: facebookAdAccountData.business.id,
+        omni_business_id:omniBusinessId,
       };
-      await populateAdAccounts(campaignData);
+      await populateAdAccounts(postgres, adAccountData);
     }
-  } catch (error) {
+   catch (error) {
     console.error('An error occurred in the main flow', error);
   } finally {
-    await client.end();
+    // await client.end();
   }
-}
 
-main();
+}
+module.exports = populateAdAccountsMain

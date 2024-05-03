@@ -4,42 +4,41 @@ const axios = require('axios');
 
 
 
-// // AWS RDS POSTGRESQL INSTANCE
-// const dbOptions = {
-//   user: process.env.DB_USER,
-//   host: process.env.DB_HOST,
-//   database: process.env.DB_DATABASE,
-//   password: process.env.DB_PASSWORD,
-//   port: process.env.DB_PORT,
-// };
+// AWS RDS POSTGRESQL INSTANCE
+const dbOptions = {
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+};
 
-// // Create a new PostgreSQL client
-// const client = new Client(dbOptions);
+// Create a new PostgreSQL client
+const client = new Client(dbOptions);
 
-// // Connect to the PostgreSQL database
-// // client.connect()
-// //   .then(() => console.log('Connected to the database'))
-// //   .catch(err => console.error('Connection error', err.stack));
+// Connect to the PostgreSQL database
+// client.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
 
 
-//   async function connectToDatabase() {
-//     try {
-//       await client.connect();
-//       console.log('Connected to the database');
-//     } catch (err) {
-//       console.error('Database connection error', err.stack);
-//       process.exit(1); // Exit the process with an error code
-//     }
-//   }
+  async function connectToDatabase() {
+    try {
+      await client.connect();
+      console.log('Connected to the database');
+    } catch (err) {
+      console.error('Database connection error', err.stack);
+      process.exit(1); // Exit the process with an error code
+    }
+  }
 
 
   
 
 
-  async function getMedia (video_id) {
+  async function getMedia () {
     try {
-
-      const apiUrl = `https://graph.facebook.com/v19.0/${video_id}?`;
+      const apiUrl = 'https://graph.facebook.com/v19.0/1076939923394031?';
       const fields = 'ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video';
       const accessToken =  process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
@@ -51,7 +50,7 @@ const axios = require('axios');
       })
       return response.data
     } catch(error) {
-      console.error('Error fetching data:', error.response.data);
+      console.error('Error fetching data:', error);
     }
   }
 
@@ -60,7 +59,7 @@ const axios = require('axios');
 
 
 
-  async function populate_fbmedia(facebookMediaData,postgres) {
+  async function populate_fbmedia(facebookMediaData) {
     try {
         const query = `
         INSERT INTO fb_media 
@@ -103,7 +102,7 @@ const axios = require('axios');
         facebookMediaData.from_id, facebookMediaData.video_link
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated media: ${facebookMediaData.video_id} into fb_media successfully`);
       return result
     } catch (err) {
@@ -116,7 +115,7 @@ const axios = require('axios');
 
 
 
-  async function populate_fb_media_formats(fbMediaFormatsData, postgres) {
+  async function populate_fb_media_formats(fbMediaFormatsData) {
     try {
         const query = `
         INSERT INTO media_formats 
@@ -130,7 +129,7 @@ const axios = require('axios');
         fbMediaFormatsData.height, fbMediaFormatsData.picture, fbMediaFormatsData.width,
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated media: ${fbMediaFormatsData.video_id} into media_formats successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
@@ -142,7 +141,7 @@ const axios = require('axios');
   
 
 
-  async function populate_fb_media_status(fbMediaStatusData, postgres) {
+  async function populate_fb_media_status(fbMediaStatusData) {
     try {
         const query = `
         INSERT INTO media_status 
@@ -156,7 +155,7 @@ const axios = require('axios');
         fbMediaStatusData.processing_status, fbMediaStatusData.publishing_status
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated media: ${fbMediaStatusData.video_id} into media_status successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
@@ -169,7 +168,7 @@ const axios = require('axios');
 
 
 
-  async function populate_fb_media_privacy(fbMediaPrivacyData, postgres) {
+  async function populate_fb_media_privacy(fbMediaPrivacyData) {
     try {
         const query = `
         INSERT INTO media_privacy 
@@ -183,7 +182,7 @@ const axios = require('axios');
         fbMediaPrivacyData.description, fbMediaPrivacyData.friends, fbMediaPrivacyData.networks, fbMediaPrivacyData.value
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated media: ${fbMediaPrivacyData.video_id} into media_privacy successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
@@ -201,10 +200,10 @@ const axios = require('axios');
 
 
 
-async function populateAdMediaMain (video_id, creative_id, postgres) {
-    
+async function main () {
+    await connectToDatabase();
     try {
-    const facebookMediaData = await getMedia(video_id)
+    const facebookMediaData = await getMedia()
 
 
     //for (let i = 0; i < facebookMediaData.length; i++) {
@@ -216,7 +215,7 @@ async function populateAdMediaMain (video_id, creative_id, postgres) {
 
         const mediaData = {
             video_id: facebookMediaData.id,
-            ad_creative_id: creative_id,
+            ad_creative_id: facebookMediaData.ad_creative_id,
             likes: facebookMediaData.likes,
             created_time: facebookMediaData.created_time,
             description: facebookMediaData.description,
@@ -241,7 +240,7 @@ async function populateAdMediaMain (video_id, creative_id, postgres) {
 
     }
 
-    await populate_fbmedia(mediaData, postgres);
+    await populate_fbmedia(mediaData);
 
     if (facebookMediaData.format && Array.isArray(facebookMediaData.format)) {
       for (const format of facebookMediaData.format) {
@@ -253,7 +252,7 @@ async function populateAdMediaMain (video_id, creative_id, postgres) {
           picture: format.picture,
           width: format.width
         };
-        await populate_fb_media_formats(fbMediaFormatData, postgres);
+        await populate_fb_media_formats(fbMediaFormatData);
       }
     }
 
@@ -264,7 +263,7 @@ async function populateAdMediaMain (video_id, creative_id, postgres) {
       processing_status: facebookMediaData.status.processing_phase.status,
       publishing_status: facebookMediaData.status.publishing_phase.status
     };
-    await populate_fb_media_status(fbMediaStatusData, postgres);
+    await populate_fb_media_status(fbMediaStatusData);
 
     const fbMediaPrivacyData = {
       video_id: facebookMediaData.id,
@@ -275,21 +274,21 @@ async function populateAdMediaMain (video_id, creative_id, postgres) {
       networks: facebookMediaData.privacy.networks,
       value: facebookMediaData.privacy.value
     };
-    await populate_fb_media_privacy(fbMediaPrivacyData, postgres);
+    await populate_fb_media_privacy(fbMediaPrivacyData);
   } catch (error) {
     console.error('Error during main execution:', error);
     process.exit(1);
-  } 
+  } finally {
+    await client.end();
+    console.log('Database connection closed');
   }
 
+}
 
 
 
 
 
-
-//populateAdMediaMain();
-
-module.exports = populateAdMediaMain
+main();
 
 

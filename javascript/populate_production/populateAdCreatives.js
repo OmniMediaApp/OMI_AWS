@@ -1,33 +1,32 @@
 require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
-const populateAdMediaMain = require('./populateAdMedia');
 
-// const dbOptions = {
-//     user: process.env.DB_USER,
-//     host: process.env.DB_HOST,
-//     database: process.env.DB_DATABASE,
-//     password: process.env.DB_PASSWORD,
-//     port: process.env.DB_PORT,
-// };
+const dbOptions = {
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_DATABASE,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+};
 
-// const client = new Client(dbOptions);
+const client = new Client(dbOptions);
 
-// async function connectToDatabase() {
-//     try {
-//         await client.connect();
-//         console.log('Connected to the database');
-//     } catch (err) {
-//         console.error('Database connection error', err.stack);
-//         process.exit(1);
-//     }
-// }
-
-async function getAdCreatives(fb_adAccountID, accessToken) {
+async function connectToDatabase() {
     try {
-        const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-        const fields = 'ads{campaign_id,adcreatives.limit(500){id,authorization_category,body,branded_content,call_to_action_type,account_id,categorization_criteria,category_media_source,degrees_of_freedom_spec,effective_instagram_media_id,effective_instagram_story_id,effective_object_story_id,facebook_branded_content,image_crops,image_hash,image_url,instagram_branded_content,instagram_permalink_url,instagram_story_id,instagram_user_id,instagram_actor_id,link_url,name,object_id,object_store_url,object_type,recommender_settings,status,template_url,thumbnail_id,thumbnail_url,title,url_tags,video_id}}';
+        await client.connect();
+        console.log('Connected to the database');
+    } catch (err) {
+        console.error('Database connection error', err.stack);
+        process.exit(1);
+    }
+}
 
+async function getAdCreatives() {
+    try {
+        const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
+        const fields = 'ads{campaign_id,adcreatives{id,authorization_category,body,branded_content,call_to_action_type,account_id,categorization_criteria,category_media_source,degrees_of_freedom_spec,effective_instagram_media_id,effective_instagram_story_id,effective_object_story_id,facebook_branded_content,image_crops,image_hash,image_url,instagram_branded_content,instagram_permalink_url,instagram_story_id,instagram_user_id,instagram_actor_id,link_url,name,object_id,object_store_url,object_type,recommender_settings,status,template_url,thumbnail_id,thumbnail_url,title,url_tags,video_id}}';
+        const accessToken = process.env.FB_ACCESS_TOKEN;
         
         const response = await axios.get(apiUrl, {
             params: {
@@ -35,16 +34,16 @@ async function getAdCreatives(fb_adAccountID, accessToken) {
                 access_token: accessToken
             }
         });
-  
+        console.log(response.data);
         return response.data;
 
     } catch (error) {
-        console.error('Error fetching data:', error.response.data);
+        console.error('Error fetching data:', error);
         return null;
     }
 }
 
-async function populateAdCreatives(facebookCreativesData, postgres) {
+async function populateAdCreatives(facebookCreativesData) {
     const query = `
         INSERT INTO fb_ad_creative (
             ad_creative_id, ad_id, campaign_id, account_id, name, degrees_of_freedom_spec, effective_instagram_media_id, effective_object_story_id,
@@ -83,17 +82,17 @@ async function populateAdCreatives(facebookCreativesData, postgres) {
         facebookCreativesData.omni_business_id,
     ];
     try {
-        await postgres.query(query, values);
+        await client.query(query, values);
         console.log(`Ad Creative ${facebookCreativesData.ad_creative_id} has been successfully inserted or updated.`);
     } catch (error) {
         console.error('Error inserting or updating ad creative:', error);
-        
+        console.error('Error inserting or updating ad creative:', error);
     }
 }
 
-async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken) {
-
-    const facebookCreativesData = await getAdCreatives(fb_adAccountID, accessToken);
+async function main() {
+    await connectToDatabase();
+    const facebookCreativesData = await getAdCreatives();
 
 
 
@@ -103,7 +102,6 @@ async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID,
                 console.error('Invalid or missing creative data');
                 return;  // Exit if no data to process
             }
-            
             const creativeData = {
                 ad_id: facebookCreativesData.ads.data[i].id,
                 campaign_id: facebookCreativesData.ads.data[i].campaign_id, 
@@ -125,18 +123,11 @@ async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID,
                 authorization_category: facebookCreativesData.ads.data[i].adcreatives.data[j].authorization_category,
                 body: facebookCreativesData.ads.data[i].adcreatives.data[j].body,
                 call_to_action_type: facebookCreativesData.ads.data[i].adcreatives.data[j].call_to_action_type,
-                omni_business_id: omniBusinessId
+                omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
             };
-                
             try {
                 //console.log(creativeData)
-                await populateAdCreatives(creativeData,postgres);
-
-                const video_id = facebookCreativesData.ads.data[i].adcreatives.data[j].video_id;
-                const creative_id = facebookCreativesData.ads.data[i].adcreatives.data[j].id;
-                if (video_id){
-                await populateAdMediaMain(video_id, creative_id, postgres);
-                }
+                await populateAdCreatives(creativeData);
             } catch (error) {
                 console.error(`Error inserting or updating creative ${creative.id}:`, error);
             }
@@ -145,8 +136,11 @@ async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID,
     }
 
 
-
-
+    await client.end();
+    console.log('Database connection closed');
 }
 
-module.exports = populateAdCreativesMain;
+main().catch(error => {
+    console.error('Unhandled error:', error);
+    process.exit(1);
+});

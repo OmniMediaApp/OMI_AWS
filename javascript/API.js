@@ -1,4 +1,5 @@
 const express = require('express');
+const { Client } = require('pg');
 const getGoogleRefreshToken = require('./endpoints/getGoogleRefreshToken');
 const getShopifyOrders = require('./endpoints/getShopifyOrders');
 const getShopifyProducts = require('./endpoints/getShopifyProducts');
@@ -12,6 +13,7 @@ const admin = require('firebase-admin');
 const serviceAccount = require('./ServiceAccountKey.json')
 const handleMediaUpload = require('./endpoints/uploadMedia'); // Adjust './uploadMedia' as necessary based on your directory structure
 const getGoogleStats = require('./endpoints/getGoogleStats');
+const populateAll = require('./tests/populateAll');
 //const saveHistoricalShopifyStats = require('./endpoints/saveHistoricalShopifyStats');
 require('dotenv').config();
 
@@ -22,7 +24,7 @@ const PORT = 3000;
 //CHNAGES MADE
 
 //MORE CHANGES
-
+// db for firbase connection
 app.use(cors());
 app.use(express.json());
 
@@ -33,6 +35,39 @@ admin.initializeApp({
 
 const db = admin.firestore();
 const storage = admin.storage();
+
+// db for postgres connection
+const dbOptions = {
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+};
+
+
+// Create a new PostgreSQL client
+const postgres = new Client(dbOptions);
+
+// Connect to the PostgreSQL database
+postgres.connect()
+  .then(() => console.log('Connected to the database'))
+  .catch(err => console.error('Connection error', err.stack));
+
+  // async function connectToDatabase() {
+  //     try {
+  //         await postgres.connect();
+  //         console.log('Connected to the database');
+  //     } catch (err) {
+  //         console.error('Database connection error', err.stack);
+  //         process.exit(1);
+  //     }
+  // }
+  const omniBusinessId = 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd';
+  const accessToken = process.env.FB_ACCESS_TOKEN;
+  const fb_businessID = '499682821437696';
+  const fb_adAccountID = 'act_331027669725413';
+
 
 function saveShopifyStatsAtMidnight() {
   console.log('Running at midnight!');
@@ -155,6 +190,21 @@ app.post('/getGoogleRefreshToken', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while fetching Google refresh token.' });
+  }
+});
+
+app.post('/populateFaceBook', async (req, res) => {
+  try {
+    const omniBusinessId = req.body.omniBusinessId;
+    const fb_businessID = req.body.fb_businessID;
+    const fb_adAccountID = req.body.fb_adAccountID;
+    const accessToken = req.body.accessToken;
+    console.log({accessToken})
+    const result = await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while populating all.' });
   }
 });
 

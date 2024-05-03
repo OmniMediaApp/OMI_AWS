@@ -22,9 +22,11 @@ const axios = require('axios');
 //     }
 // }
 
-async function getBusinesses(fb_businessID, accessToken) {
-    const apiUrl = `https://graph.facebook.com/v19.0/${fb_businessID}`;
-    const fields = `verification_status,created_by,created_time,id,name,adspixels{id,last_fired_time,name,owner_ad_account,owner_business}`;
+async function getBusinesses() {
+    const apiUrl = 'https://graph.facebook.com/v19.0/me';
+    const fields = 'businesses{verification_status,created_by,created_time,id,name,adspixels{id,last_fired_time,name,owner_ad_account,owner_business},adaccounts{id,name}}';
+    const accessToken = process.env.FB_ACCESS_TOKEN;
+    
     try {
         const response = await axios.get(apiUrl, {
             params: {
@@ -34,7 +36,7 @@ async function getBusinesses(fb_businessID, accessToken) {
         });
         return response.data;
     } catch (error) {
-        console.error('Error fetching data:', error.response);
+        console.error('Error fetching data:', error);
         return null;
     }
 }
@@ -104,40 +106,39 @@ async function populatePixel(pixelData, postgres) {
   }
 }
 
-async function populateBusinessesMain(postgres, omniBusinessId, fb_businessID , accessToken) {
+async function populateBusinessesMain(postgres) {
     // await connectDatabase();
-    //console.log({postgres, omniBusinessId, fb_businessID, accessToken})
-    const facebookBusinessData = await getBusinesses(fb_businessID, accessToken);
-    
-    if (!facebookBusinessData) {
+    const facebookBusinessData = await getBusinesses();
+    if (!facebookBusinessData || !facebookBusinessData.businesses) {
       console.error('Invalid business data fetched.');
       process.exit(1);
     }
-  
+    for (const business of facebookBusinessData.businesses.data) {
       const businessData = {
-          business_id: facebookBusinessData.id,
-          business_name: facebookBusinessData.name,
-          verification_status: facebookBusinessData.verification_status,
-          created_time: facebookBusinessData.created_time, // Collect all ad account data
-          omni_business_id: omniBusinessId // Adjust as needed
+          business_id: business.id,
+          business_name: business.name,
+          verification_status: business.verification_status,
+          created_time: business.created_time,
+          ad_accounts: business.adaccounts || [], // Collect all ad account data
+          omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd' // Adjust as needed
         };
         await populateBusinesses(businessData,postgres).catch(error => {
           console.error('Error inserting business:', error);
           });
       
 
-    if (facebookBusinessData.adspixels) {
-        for (const pixel of facebookBusinessData.adspixels.data) {
+    if (business.adspixels) {
+        for (const pixel of business.adspixels.data) {
             const pixelData = {
                 id: pixel.id,
                 name: pixel.name,
                 last_fired_time: pixel.last_fired_time,
-                business_name: pixel.owner_business.name,
+                business_name: business.name,
                 owner_ad_account: pixel.owner_ad_account.account_id,
                 owner_business: pixel.owner_business.id,
                 creation_time: pixel.creation_time,
                 enable_automatic_matching: pixel.enable_automatic_matching,
-                omni_business_id: omniBusinessId
+                omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd'
             };
             await populatePixel(pixelData,postgres).catch(error => {
                 console.error('Error inserting pixel:', error);
@@ -153,7 +154,7 @@ async function populateBusinessesMain(postgres, omniBusinessId, fb_businessID , 
     //   await postgres.end();
     // console.log('Database connection closed');
 
-
+}
 // main().catch(err => {
 //     console.error('Unhandled error:', err);
 //     process.exit(1);

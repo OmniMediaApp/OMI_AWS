@@ -5,15 +5,43 @@ const axios = require('axios');
 
 
 
+// AWS RDS POSTGRESQL INSTANCE
+const dbOptions = {
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_DATABASE,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
+};
+
+// Create a new PostgreSQL client
+const client = new Client(dbOptions);
+
+// Connect to the PostgreSQL database
+// client.connect()
+//   .then(() => console.log('Connected to the database'))
+//   .catch(err => console.error('Connection error', err.stack));
+
+
+async function connectToDatabase() {
+  try {
+    await client.connect();
+    console.log('Connected to the database');
+  } catch (err) {
+    console.error('Database connection error', err.stack);
+    process.exit(1); // Exit the process with an error code
+  }
+}
+
 
   
 
 
-  async function getAdsets ( fb_adAccountID, accessToken) {
+  async function getAdsets () {
     try {
-      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
+      const apiUrl = 'https://graph.facebook.com/v19.0/act_331027669725413';
       const fields = 'account_id,adsets{name,id,campaign,budget_remaining,account_id,adset_schedule,bid_adjustments,bid_amount,bid_strategy,bid_info,campaign_id,created_time,daily_budget,daily_spend_cap,end_time,lifetime_budget,lifetime_spend_cap,recommendations,promoted_object,start_time,source_adset,source_adset_id,rf_prediction_id,review_feedback,status,targeting,targeting_optimization_types,updated_time}';
- // Replace with your Facebook access token
+      const accessToken = process.env.FB_ACCESS_TOKEN; // Replace with your Facebook access token
       
       const response = await axios.get(apiUrl, {
         params: {
@@ -31,9 +59,15 @@ const axios = require('axios');
 
 
 
+  async function adsetEsists(campaignID){
+    const query = `
+    SELECT 1 FROM fb_ad WHERE adset_id = $1
+    `;
+    const result = await client.query(query, [campaignID]);
+    return result.rowCount > 0;
+}
 
-
-  async function populate_fbadsets(facebookAdsetData, postgres) {
+  async function populate_fbadsets(facebookAdsetData) {
     try {
         const query = `
         INSERT INTO fb_adset 
@@ -95,7 +129,7 @@ const axios = require('axios');
 
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset successfully`);
       return result
     } catch (err) {
@@ -108,7 +142,7 @@ const axios = require('axios');
 
 
 
-  async function populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres) {
+  async function populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData) {
     try {
         const query = `
         INSERT INTO fb_targeting_optimization_types 
@@ -121,7 +155,7 @@ const axios = require('axios');
         fbAdsetTargetingOptimizationTypesData.adset_id, fbAdsetTargetingOptimizationTypesData.key, fbAdsetTargetingOptimizationTypesData.value
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       console.log(`Inserted or updated adset: ${fbAdsetTargetingOptimizationTypesData.adset_id} into fb_targeting_optimization_types successfully`);
     } catch (err) {
       console.error('Insert or update error:', err);
@@ -133,7 +167,7 @@ const axios = require('axios');
   
 
 
-  async function populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData, postgres) {
+  async function populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData) {
     try {
         const query = `
         INSERT INTO fb_flexible_spec
@@ -146,7 +180,7 @@ const axios = require('axios');
         fbAdsetFlexibleSpecData.adset_id, fbAdsetFlexibleSpecData.interest_id, fbAdsetFlexibleSpecData.interest_name, 
       ];
   
-      const result = await postgres.query(query, values);
+      const result = await client.query(query, values);
       //console.log(result)
       console.log(`Inserted or updated adset: ${fbAdsetFlexibleSpecData.adset_id} into fb_targeting successfully`);
     } catch (err) {
@@ -165,10 +199,10 @@ const axios = require('axios');
 
 
 
-async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, accessToken) {
+async function main () {
 
-
-  const facebookAdsetData = await getAdsets( fb_adAccountID, accessToken);
+  await connectToDatabase();
+  const facebookAdsetData = await getAdsets();
   if (!facebookAdsetData || !facebookAdsetData.adsets) {
     console.error('Invalid ad adset data fetched.'); // Exit early if there is no data
     return; // Add a return statement to prevent further execution
@@ -205,7 +239,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
         targeting_age_min: adset.targeting ? adset.targeting.age_min : undefined,
         targeting_age_max: adset.targeting ? adset.targeting.age_max : undefined,
         updated_time: adset.updated_time,
-        omni_business_id: omniBusinessId,
+        omni_business_id: 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd',
         ad_ids: adset.ad_ids,
         db_updated_at: new Date(),
         pixel_id: adset.promoted_object ? adset.promoted_object.pixel_id : undefined,
@@ -221,7 +255,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
      
     
 
-      await populate_fbadsets(adsetData, postgres).catch((error) => {
+      await populate_fbadsets(adsetData).catch((error) => {
         console.error(`Error populating adset ${adset.id}: `, error);
       });
     
@@ -234,7 +268,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
         };
         
         // Await the function and handle errors
-        await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres).catch((error) => {
+        await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData).catch((error) => {
           console.error(`Error populating targeting optimization types for adset ${adset.id}: `, error);
         });
       }
@@ -252,7 +286,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
             };
 
             // Await the function and handle errors
-            await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData, postgres).catch((error) => {
+            await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData).catch((error) => {
               console.error(`Error populating flexible spec for adset ${adset.id}: `, error);
             });
           }
@@ -262,9 +296,11 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
   }
 
   // Close the database connection
-
+  await client.end();
 }
 
+main().catch((error) => {
+  console.error('An error occurred in the main function: ', error);
+  process.exit(1); // Exit the process with an error code
+});
 
-
-module.exports = populateAdSetsMain;
