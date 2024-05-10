@@ -58,7 +58,7 @@ const client = new Client(dbOptions);
 
 
 
-  async function populateCampaigns(facebookCampaignData) {
+  async function populateCampaigns(facebookCampaignData, postgres) {
     
       const query = `
         INSERT INTO fb_campaign 
@@ -108,7 +108,7 @@ const client = new Client(dbOptions);
 
 
 
-async function main () {
+async function main (postgres) {
   await connectToDatabase();
 try{
   const facebookCampaignData = await getCampaigns();

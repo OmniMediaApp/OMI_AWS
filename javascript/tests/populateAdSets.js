@@ -1,33 +1,78 @@
 require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
+ // Ensure axios is imported
 
 
+ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+ async function fetchWithRateLimit(url, params, fb_adAccountID) {
+     const account_id = fb_adAccountID.split('_')[1];
+ 
+     const response = await axios.get(url, { params });
+     //console.log("response:",response.headers)
+     const adAccountUsage = response.headers['x-business-use-case-usage'];
+     console.log("adAccountUsage:",adAccountUsage);
+     if (!adAccountUsage) {
+       console.error('No business use case usage data found in the headers.');
+       ;
+     }
+     const usageData = JSON.parse(adAccountUsage);
+     console.log("usageData:",usageData)
+     if (!usageData) {
+         console.error('Usage data is missing or does not contain expected array elements.');
+         return null;
+     }
+ 
+     const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+ 
+     // Dynamically adjust waiting based on usage
+     const maxUsage = Math.max(call_count, total_cputime, total_time);
+     if (maxUsage >= 90) {
+         console.log('API usage nearing limit. Adjusting request rate.');
+         await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
+     }
+ 
+     if (estimated_time_to_regain_access > 0) {
+         console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} seconds.`);
+         await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
+     }
+     //console.log("response:",response)
+     return response.data;
+     
+ }
+ 
+async function getAdsets(fb_adAccountID, accessToken) {
+    const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`; // Correct endpoint for adsets
+    const fields = 'adsets{name,id,campaign{id},budget_remaining,account_id,adset_schedule,bid_adjustments,bid_amount,bid_strategy,bid_info,campaign_id,created_time,daily_budget,daily_spend_cap,end_time,lifetime_budget,lifetime_spend_cap,recommendations,promoted_object,start_time,source_adset,source_adset_id,rf_prediction_id,review_feedback,status,targeting,updated_time}';
 
+    let allData = [];
+    let url = apiUrl;
+    let params = {
+        fields: fields,
+        access_token: accessToken
+    };
 
-  
-
-
-  async function getAdsets ( fb_adAccountID, accessToken) {
     try {
-      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-      const fields = 'account_id,adsets{name,id,campaign,budget_remaining,account_id,adset_schedule,bid_adjustments,bid_amount,bid_strategy,bid_info,campaign_id,created_time,daily_budget,daily_spend_cap,end_time,lifetime_budget,lifetime_spend_cap,recommendations,promoted_object,start_time,source_adset,source_adset_id,rf_prediction_id,review_feedback,status,targeting,targeting_optimization_types,updated_time}';
- // Replace with your Facebook access token
-      
-      const response = await axios.get(apiUrl, {
-        params: {
-          fields: fields,
-          access_token: accessToken
-        }
-      })
-      return response.data
-    } catch(error) {
-      console.error('Error fetching data:', error);
-      process.exit(1);
+        do {
+            const response = await fetchWithRateLimit(url, params,fb_adAccountID);
+            console.log('API Response:', response); // Log the full response
+            if (response.adsets && response.adsets.data) {
+                
+                allData.push(...response.adsets.data); // Collect all adsets across pages
+            } else {
+                console.error('No data field in response:', response);
+                break; // Exit if no data is found
+            }
+            url =  response.adsets.paging?.next; // Update the URL to the next page if available
+            params = {}; // Clear parameters since the next URL will contain them if needed
+        } while (url);
+        return allData;
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        return null; // Return null to indicate failure
     }
-  }
-
+}
 
 
 
@@ -169,12 +214,12 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
 
 
   const facebookAdsetData = await getAdsets( fb_adAccountID, accessToken);
-  if (!facebookAdsetData || !facebookAdsetData.adsets) {
+  if (!facebookAdsetData) {
     console.error('Invalid ad adset data fetched.'); // Exit early if there is no data
     return; // Add a return statement to prevent further execution
   }
 
-    for (const adset of facebookAdsetData.adsets.data) {
+    for (const adset of facebookAdsetData) {
     //for (let i = 0; i < 2; i++) {
       const adsetData = {
         // fb_adsets

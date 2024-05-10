@@ -2,39 +2,53 @@ require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
+const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+let requestCount = 0;
+let resetTime = Date.now() + 3600000; // 1 hour from now
 
-
-
-// AWS RDS POSTGRESQL INSTANCE
-const dbOptions = {
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_DATABASE,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
-};
-
-
-  
-
-
-  async function getCampaigns (fb_adAccountID, accessToken) {
-    try {
-      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-      const fields = 'created_time,id,is_personal,campaigns.limit(150){name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
-    
-      
-      const response = await axios.get(apiUrl, {
-        params: {
-          fields: fields,
-          access_token: accessToken
+// Function to handle rate limiting
+async function fetchWithRateLimit(url, params) {
+    if (requestCount >= 200) {
+        const now = Date.now();
+        if (now < resetTime) {
+            const waitTime = resetTime - now;
+            console.log(`Rate limit reached. Waiting for ${waitTime / 1000} seconds.`);
+            await sleep(waitTime);
         }
-      })
-      return response.data
-    } catch(error) {
-      console.error('Error fetching data:', error.response.data);
+        requestCount = 0; // Reset count after waiting
+        resetTime = Date.now() + 3600000; // Set new reset time
     }
+
+    const response = await axios.get(url, { params });
+    requestCount++; // Increment request count after each successful call
+    return response.data;
+}
+
+async function getCampaigns(fb_adAccountID, accessToken) {
+  const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
+  const fields = 'campaigns{name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
+  let allCampaigns = [];
+  let nextPageUrl = `${apiUrl}?fields=${fields}&access_token=${accessToken}`;
+
+  try {
+      do {
+          const response = await fetchWithRateLimit(nextPageUrl);
+          //console.log('API Response:', response); // Log the full response
+          if (response && response.campaigns && response.campaigns.data) {
+              allCampaigns.push(...response.campaigns.data);
+              nextPageUrl = response.campaigns.paging && response.campaigns.paging.next ? response.campaigns.paging.next : null;
+          } else {
+              console.error('No campaigns data in response:', response);
+              nextPageUrl = null; // Ensure loop exits if no further data
+          }
+      } while (nextPageUrl);
+  } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      throw error; // Rethrow the error to be handled by the calling function
   }
+
+  return allCampaigns;
+}
 
 
 
@@ -90,11 +104,11 @@ async function populateCampaignsMain (postgres, omniBusinessId, fb_adAccountID, 
 try{
   const facebookCampaignData = await getCampaigns(fb_adAccountID, accessToken);
 
-  if (!facebookCampaignData || !facebookCampaignData.campaigns) {
+  if (!facebookCampaignData || !facebookCampaignData.length===0) {
      throw new Error('Invalid ad account data fetched.');
   }
 
-  for (const campaign of facebookCampaignData.campaigns.data) {
+  for (const campaign of facebookCampaignData) {
     const campaignData = {
       campaign_id: campaign.id,
       status: campaign.status,
@@ -111,7 +125,7 @@ try{
       special_ad_categories: campaign.special_ad_categories,
       updated_time: campaign.updated_time,
       name: campaign.name, 
-      ad_account_id: facebookCampaignData.id, // Assuming this is the correct association
+      ad_account_id: fb_adAccountID, // Assuming this is the correct association
       omni_business_id: omniBusinessId,
     }
 
