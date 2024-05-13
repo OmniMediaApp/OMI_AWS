@@ -10,37 +10,24 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     const response = await axios.get(url, { params });
     const adAccountUsage = response.headers['x-business-use-case-usage'];
-    if (!adAccountUsage) {
-      console.error('No business use case usage data found in the headers.');
-      return null;
-    }
+
     const usageData = JSON.parse(adAccountUsage);
-    if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('Usage data is missing or does not contain expected array elements.');
-        return null;
-    }
+
 
     const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
 
     // Dynamically adjust waiting based on usage
     const maxUsage = Math.max(call_count, total_cputime, total_time);
-    if (maxUsage >= 90) {
-        console.log('API usage nearing limit. Adjusting request rate.');
-        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
-    }
-
-    if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
-    }
+    console.log(`PopulateAdCreative.js: API USAGE ${maxUsage}%`)
 
     if (response.status == 400){
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        console.log(`PopulateAdCreative.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
         await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
         console.log(response.data);
         return fetchWithRateLimit(url, params, fb_adAccountID)
+    } else {
+        return response.data;
     }
-    return response.data;
 }
 
 
@@ -53,15 +40,19 @@ async function getAdCreatives(fb_adAccountID, accessToken) {
         let url = apiUrl;
         let params = {
             fields: fields,
-            access_token: accessToken
+            access_token: accessToken,
+            limit: 200
         };
+        let i = 0;
         do {
+            i++
+            console.log('Fetching creatives: ' + i + ' => Retreived creatives: ' + allData.length)
             const data = await fetchWithRateLimit(url, params, fb_adAccountID);
             //console.log('API Response:', data); // Log the full response
             if (data && data.data) {
                 allData.push(...data.data);
             } else {
-                console.error('No data field in response:', data);
+                console.error('PopulateAdCreative.js: No data field in response:', data);
                 break;
             }
             url = data.paging?.next;
@@ -70,7 +61,7 @@ async function getAdCreatives(fb_adAccountID, accessToken) {
   
         return allData;
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('PopulateAdCreative.js: Error fetching data:', error);
     }
 }
 
@@ -116,9 +107,9 @@ async function populateAdCreatives(facebookCreativesData, postgres) {
     ];
     try {
         await postgres.query(query, values);
-        console.log(`Ad Creative ${facebookCreativesData.ad_creative_id} has been successfully inserted or updated.`);
+        console.log(`PopulateAdCreative.js: Ad Creative ${facebookCreativesData.ad_creative_id} has been successfully inserted or updated.`);
     } catch (error) {
-        console.error('Error inserting or updating ad creative:', error);
+        console.error('PopulateAdCreative.js: Error inserting or updating ad creative:', error);
         
     }
 }
@@ -129,7 +120,7 @@ async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID,
 
     // Early exit if data is missing or invalid
     if (!facebookCreativesData) {
-        console.error('Invalid or missing creative data');
+        console.error('PopulateAdCreative.js: Invalid or missing creative data');
         return;
     }
 
@@ -168,7 +159,7 @@ async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID,
 
               
             } catch (error) {
-                console.error(`Error inserting or updating creative ${creative.id}:`, error);
+                console.error(`PopulateAdCreative.js: Error inserting or updating creative ${creative.id}:`, error);
             }
         }
     }

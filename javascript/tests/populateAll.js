@@ -16,44 +16,53 @@ async function populateSelectedAccount (postgres, omniBusinessId, fb_businessID,
 
     
     
-    await populateBusinessMain(postgres, omniBusinessId, fb_businessID , accessToken)
-    console.log("Business populated successfully.");
+    // await populateBusinessMain(postgres, omniBusinessId, fb_businessID , accessToken)
+    // console.log("PopulateAll.js: Business populated successfully.");
     
-    await populateAdAccountsMain(postgres, omniBusinessId, fb_adAccountID, accessToken)
-    console.log("Ad Accounts populated successfully.");
+    // await populateAdAccountsMain(postgres, omniBusinessId, fb_adAccountID, accessToken)
+    // console.log("PopulateAll.js: Ad Accounts populated successfully.");
       
 }
+
+
 
 async function populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken) {
   try {
     
     // await populateCampaignsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-    //   console.log("Campaigns populated successfully.");
+    // console.log("PopulateAll.js: Campaigns populated successfully.");
 
-    //  await populateAdSetsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-    //   console.log("AdSets populated successfully.");
+    // await populateAdSetsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+    // console.log("PopulateAll.js: AdSets populated successfully.");
 
-    await populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-      console.log("Ads populated successfully.");
+    // await populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+    // console.log("PopulateAll.js: Ads populated successfully.");
 
-    await populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-      console.log("Ad Creatives, populated successfully.");
+    // await populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+    // console.log("PopulateAll.js: Ad Creatives, populated successfully.");
+
     await populateAdVideos(postgres, omniBusinessId, fb_adAccountID, accessToken)
-      console.log("Ad Videos populated successfully.");
+    console.log("PopulateAll.js: Ad Videos populated successfully.");
+
   } catch (error) {
-      console.error("An error occurred in populateDataDetails:", error);
+      console.error("PopulateAll.js: An error occurred in populateDataDetails:", error);
   }
 }
+
+
+
 async function populateAll (postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken) {
 
-try {
-   await populateSelectedAccount(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-   await populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken);  
-  
-  //fetchAdAccountUsage(fb_adAccountID, accessToken);
-  //console.log("All data populated successfully.");
-}catch (error) {
-    console.error("An error occurred in populateAll:", error);
+  try {
+    await populateSelectedAccount(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
+    await populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken);  
+    
+    return "success"
+
+  } catch (error) {
+    console.error("PopulateAll.js: An error occurred in populateAll:", error);
+
+    return "error"
   }
 }
 

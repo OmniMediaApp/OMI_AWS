@@ -12,7 +12,7 @@ const axios = require('axios');
     //console.log("response:",response.headers)
     if (response.status == 400){
 
-        console.log("API rate limit reached. Waiting for 10 minute")
+        console.log("PopulateAdSets.js: API rate limit reached. Waiting for 10 minute")
         await sleep(10 * 60 * 1000)
         return fetchWithRateLimit(url, params, fb_adAccountID)
     }
@@ -29,18 +29,22 @@ async function getAdsets(fb_adAccountID, accessToken) {
     let url = apiUrl;
     let params = {
         fields: fields,
-        access_token: accessToken
+        access_token: accessToken,
+        limit: 100
     };
 
+    let i = 0;
     try {
         do {
+          i++;
+          console.log('Fetching adsets: ' + i + ' => Retreived adsets: ' + allData.length)
             const response = await fetchWithRateLimit(url, params,fb_adAccountID);
             //console.log('API Response:', response); // Log the full response
             if (response && response.data) {
                 
                 allData.push(...response.data); // Collect all adsets across pages
             } else {
-                console.error('No data field in response:', response);
+                console.error('PopulateAdSets.js: No data field in response:', response);
                 break; // Exit if no data is found
             }
             url =  response.paging?.next; // Update the URL to the next page if available
@@ -48,7 +52,7 @@ async function getAdsets(fb_adAccountID, accessToken) {
         } while (url);
         return allData;
     } catch (error) {
-        console.error('Error fetching data:', error);  // Return null to indicate failure
+        console.error('PopulateAdSets.js: Error fetching data:', error);  // Return null to indicate failure
     }
 }
 
@@ -119,10 +123,10 @@ async function getAdsets(fb_adAccountID, accessToken) {
       ];
   
       const result = await postgres.query(query, values);
-      console.log(`Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset successfully`);
+      console.log(`PopulateAdSets.js: Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset successfully`);
       return result
     } catch (err) {
-      console.error('Insert or update error:', err);
+      console.error('PopulateAdSets.js: Insert or update error:', err);
     } finally {
       // Close the client connection
       //client.end();
@@ -145,9 +149,9 @@ async function getAdsets(fb_adAccountID, accessToken) {
       ];
   
       const result = await postgres.query(query, values);
-      console.log(`Inserted or updated adset: ${fbAdsetTargetingOptimizationTypesData.adset_id} into fb_targeting_optimization_types successfully`);
+      console.log(`PopulateAdSets.js: Inserted or updated adset: ${fbAdsetTargetingOptimizationTypesData.adset_id} into fb_targeting_optimization_types successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err);
+      console.error('PopulateAdSets.js: Insert or update error:', err);
     } finally {
       // Close the client connection
       //client.end();
@@ -171,9 +175,9 @@ async function getAdsets(fb_adAccountID, accessToken) {
   
       const result = await postgres.query(query, values);
       //console.log(result)
-      console.log(`Inserted or updated adset: ${fbAdsetFlexibleSpecData.adset_id} into fb_targeting successfully`);
+      console.log(`PopulateAdSets.js: Inserted or updated adset: ${fbAdsetFlexibleSpecData.adset_id} into fb_targeting successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err);
+      console.error('PopulateAdSets.js: Insert or update error:', err);
     } finally {
       // Close the client connection
       //client.end();
@@ -193,7 +197,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
 
   const facebookAdsetData = await getAdsets( fb_adAccountID, accessToken);
   if (!facebookAdsetData) {
-    console.error('Invalid ad adset data fetched.'); // Exit early if there is no data
+    console.error('PopulateAdSets.js: Invalid ad adset data fetched.'); // Exit early if there is no data
     return; // Add a return statement to prevent further execution
   }
 
@@ -245,7 +249,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
     
 
       await populate_fbadsets(adsetData, postgres).catch((error) => {
-        console.error(`Error populating adset ${adset.id}: `, error);
+        console.error(`PopulateAdSets.js: Error populating adset ${adset.id}: `, error);
       });
     
     if (adset.targeting_optimization_types) {
@@ -258,7 +262,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
         
         // Await the function and handle errors
         await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres).catch((error) => {
-          console.error(`Error populating targeting optimization types for adset ${adset.id}: `, error);
+          console.error(`PopulateAdSets.js: Error populating targeting optimization types for adset ${adset.id}: `, error);
         });
       }
     }
@@ -276,7 +280,7 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
 
             // Await the function and handle errors
             await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData, postgres).catch((error) => {
-              console.error(`Error populating flexible spec for adset ${adset.id}: `, error);
+              console.error(`PopulateAdSets.js: Error populating flexible spec for adset ${adset.id}: `, error);
             });
           }
         }

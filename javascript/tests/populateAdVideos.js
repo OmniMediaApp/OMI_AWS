@@ -12,12 +12,12 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     const response = await axios.get(url, { params });
     const adAccountUsage = response.headers['x-business-use-case-usage'];
     if (!adAccountUsage) {
-      console.error('No business use case usage data found in the headers.');
+      console.error('PopulateAdVideos.js: No business use case usage data found in the headers.');
       return null;
     }
     const usageData = JSON.parse(adAccountUsage);
     if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('Usage data is missing or does not contain expected array elements.');
+        console.error('PopulateAdVideos.js: Usage data is missing or does not contain expected array elements.');
         return null;
     }
 
@@ -25,58 +25,63 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     // Dynamically adjust waiting based on usage
     const maxUsage = Math.max(call_count, total_cputime, total_time);
-    if (maxUsage >= 90) {
-        console.log('API usage nearing limit. Adjusting request rate.');
-        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
-    }
+    console.log(`PopulateAdVideos.js: API USAGE ${maxUsage}%`)
 
-    if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
-    }
     if (response.status == 400){
-      console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+      console.log(`PopulateAdVideos.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
       await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
       console.log(response.data);
       return fetchWithRateLimit(url, params, fb_adAccountID)
+  } else {
+    return response.data;
   }
 
-    return response.data;
 }
 
 
-  async function getMedia (fb_adAccountID,accessToken) {
-   
-
-      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/advideos`;
-      const fields = 'ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video';
-       // Replace with your Facebook access token
-       let allAdVideos = [];
-       
-       let url = apiUrl;
-       let params = {
-           fields: fields,
-           access_token: accessToken
-       };
-       try {
-        do {
-            const response = await fetchWithRateLimit(url, params,fb_adAccountID);
-            //console.log('API Response:', response); // Log the full response
-            if (response && response.data) {
-              allAdVideos.push(...response.data);
-                nextPageUrl = response.paging.next ? response.paging.next : null; 
-            } else {
-                console.error('No adVideo data in response:', response);
-                nextPageUrl = null; // Ensure loop exits if no further data
-            }
-        } while (nextPageUrl);
-    } catch (error) {
-        console.error('Error fetching campaigns:', error, response);
-        throw error; // Rethrow the error to be handled by the calling function
-    }
+async function getMedia(fb_adAccountID, accessToken) {
+  const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/advideos`;
+  const fields = 'ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video';
   
-    return allAdVideos;
+  let allAdVideos = [];
+  let url = apiUrl;
+  let params = {
+      fields: fields,
+      access_token: accessToken,
+      limit: 75
+  };
+  
+  try {
+      let nextPageUrl = null;
+      let i = 0;
+      
+      do {
+          i++;
+          console.log('Fetching videos: ' + i + ' => Retrieved videos: ' + allAdVideos.length);
+          
+          const response = await fetchWithRateLimit(url, params, fb_adAccountID);
+          
+          if (response && response.data) {
+              allAdVideos.push(...response.data);
+              nextPageUrl = response.paging?.next || null;
+              
+              // Update the url for the next request
+              if (nextPageUrl) {
+                  url = nextPageUrl;
+              }
+          } else {
+              console.error('No adVideo data in response:', response);
+              nextPageUrl = null;
+          }
+      } while (nextPageUrl);
+  } catch (error) {
+      console.error('Error fetching videos:', error.message);
+      throw error; // Rethrow the error to be handled by the calling function
   }
+  
+  return allAdVideos;
+}
+
 
 
 
@@ -122,10 +127,10 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
       ];
   
       const result = await postgres.query(query, values);
-      console.log(`Inserted or updated media: ${facebookMediaData.video_id} into fb_ad_videos successfully`);
+      console.log(`PopulateAdVideos.js: Inserted or updated media: ${facebookMediaData.video_id} into fb_ad_videos successfully`);
       return result;
     } catch (err) {
-      console.error('Insert or update error:', err);
+      console.error('PopulateAdVideos.js: Insert or update error:', err);
     }
   };
   
@@ -146,12 +151,9 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
       ];
   
       const result = await postgres.query(query, values);
-      console.log(`Inserted or updated media: ${fbMediaFormatsData.video_id} into media_formats successfully`);
+      console.log(`PopulateAdVideos.js: Inserted or updated media: ${fbMediaFormatsData.video_id} into media_formats successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err);
-    } finally {
-      // Close the client connection
-      //client.end();
+      console.error('PopulateAdVideos.js: Insert or update error:', err);
     }
   };
   
@@ -172,13 +174,10 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
       ];
   
       const result =  await postgres.query(query, values);
-      console.log(`Inserted or updated media: ${fbMediaStatusData.video_id} into media_status successfully`);
+      console.log(`PopulateAdVideos.js: Inserted or updated media: ${fbMediaStatusData.video_id} into media_status successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err);
-    } finally {
-      // Close the client connection
-      //client.end();
-    }
+      console.error('PopulateAdVideos.js: Insert or update error:', err);
+    } 
   };
 
 
@@ -198,13 +197,10 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
       ];
   
       const result = await postgres.query(query, values);
-      console.log(`Inserted or updated media: ${fbMediaPrivacyData.video_id} into media_privacy successfully`);
+      console.log(`PopulateAdVideos.js: Inserted or updated media: ${fbMediaPrivacyData.video_id} into media_privacy successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err);
-    } finally {
-      // Close the client connection
-      //client.end();
-    }
+      console.error('PopulateAdVideos.js: Insert or update error:', err);
+    } 
   };
 
 
@@ -219,7 +215,7 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
   
     for (const advideo of facebookMediaData) {
       if (!advideo.id) {
-        console.error('Missing video ID for advideo:', advideo);
+        console.error('PopulateAdVideos.js: Missing video ID for advideo:', advideo);
         continue; // Skip this iteration if the ID is missing
       }
   

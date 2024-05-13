@@ -215,7 +215,7 @@ app.post('/populateFaceBook', async (req, res) => {
     const accessToken = req.body.accessToken;
     
     const result = await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-    res.send(result);
+    res.send({data: result});
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while populating all.' });

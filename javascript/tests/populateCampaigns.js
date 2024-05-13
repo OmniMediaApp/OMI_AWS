@@ -10,12 +10,12 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     const response = await axios.get(url, { params });
     const adAccountUsage = response.headers['x-business-use-case-usage'];
     if (!adAccountUsage) {
-      console.error('No business use case usage data found in the headers.');
+      console.error('PopulateCampaigns.js: No business use case usage data found in the headers.');
       return null;
     }
     const usageData = JSON.parse(adAccountUsage);
     if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('Usage data is missing or does not contain expected array elements.');
+        console.error('PopulateCampaigns.js: Usage data is missing or does not contain expected array elements.');
         return null;
     }
 
@@ -23,19 +23,11 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     // Dynamically adjust waiting based on usage
     const maxUsage = Math.max(call_count, total_cputime, total_time);
-    if (maxUsage >= 90) {
-        console.log('API usage nearing limit. Adjusting request rate.');
-        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
-    }
+    console.log(`PopulateCampaigns.js: API USAGE ${maxUsage}%`)
 
-    if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
-    }
     if (response.status == 400){
-      console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+      console.log(`PopulateCampaigns.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
       await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
-      console.log(response.data);
       return fetchWithRateLimit(url, params, fb_adAccountID)
   }
     return response.data;
@@ -51,11 +43,15 @@ async function getCampaigns(fb_adAccountID, accessToken) {
   let params = {
     fields: fields,
     access_token: accessToken,
-    limit: 50
+    limit: 100
 };
+
+  let i = 0;
   try {
       do {
-          const response = await fetchWithRateLimit(url, params);
+        i++;
+        console.log('Fetching Campaigns ' + i);
+          const response = await fetchWithRateLimit(url, params, fb_adAccountID);
           //console.log('API Response:', response); // Log the full response
           if (response && response.data ) {
               allCampaigns.push(...response.data);
@@ -66,7 +62,7 @@ async function getCampaigns(fb_adAccountID, accessToken) {
           }
       } while (url);
   } catch (error) {
-      console.error('Error fetching campaigns:', error);
+      console.error('PopulateCampaigns.js: Error fetching campaigns:', error);
       throw error; // Rethrow the error to be handled by the calling function
   }
 
@@ -112,9 +108,9 @@ async function getCampaigns(fb_adAccountID, accessToken) {
   
     try {
       await postgres.query(query, values);
-      console.log(`Inserted or updated campaign: ${facebookCampaignData.campaign_id} successfully`);
+      console.log(`PopulateCampaigns.js: Inserted or updated campaign: ${facebookCampaignData.campaign_id} successfully`);
     } catch (err) {
-      console.error('Insert or update error:', err.stack);
+      console.error('PopulateCampaigns.js: Insert or update error:', err.stack);
     }
   }
   
@@ -128,7 +124,7 @@ try{
   const facebookCampaignData = await getCampaigns(fb_adAccountID, accessToken);
 
   if (!facebookCampaignData || !facebookCampaignData.length===0) {
-     throw new Error('Invalid ad account data fetched.');
+     throw new Error('PopulateCampaigns.js: Invalid ad account data fetched.');
   }
 
   for (const campaign of facebookCampaignData) {
@@ -154,11 +150,11 @@ try{
 
     // If order matters or you want to handle errors per campaign, await here
     await populateCampaigns(campaignData, postgres).catch((error) => {
-      console.error(`Error populating campaign ${campaignData.campaign_id}: `, error);
+      console.error(`PopulateCampaigns.js: Error populating campaign ${campaignData.campaign_id}: `, error);
     });
   }
 } catch (error) {
-  console.error('An error occurred in the main flow', error);
+  console.error('PopulateCampaigns.js: An error occurred in the main flow', error);
 } finally {
    // Close the client connection at the end of all operations
 }

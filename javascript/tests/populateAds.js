@@ -9,42 +9,26 @@ const axios = require('axios');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRateLimit(url, params, fb_adAccountID) {
-    console.log(fb_adAccountID);
+    //console.log(fb_adAccountID);
     const account_id = fb_adAccountID.split('_')[1];
 
     const response = await axios.get(url, { params });
+
     const adAccountUsage = response.headers['x-business-use-case-usage'];
-    if (!adAccountUsage) {
-      console.error('No business use case usage data found in the headers.');
-      return null;
-    }
     const usageData = JSON.parse(adAccountUsage);
-    if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('Usage data is missing or does not contain expected array elements.');
-        return null;
-    }
-
     const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
-
-    // Dynamically adjust waiting based on usage
     const maxUsage = Math.max(call_count, total_cputime, total_time);
-    if (maxUsage >= 90) {
-        console.log('API usage nearing limit. Adjusting request rate.');
-        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
-    }
+    console.log(`PopulateAds.js: API USAGE ${maxUsage}%`)
 
-    if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
-    }
     if (response.status == 400){
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        console.log(`PopulateAds.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
         await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
-        console.log(response.data);
-        return fetchWithRateLimit(url, params, fb_adAccountID)
+        //console.log(response.data);
+        fetchWithRateLimit(url, params, fb_adAccountID)
+    } else {
+        return response.data;
     }
 
-    return response.data;
 }
 
 async function getAds(fb_adAccountID, accessToken) {
@@ -54,11 +38,15 @@ async function getAds(fb_adAccountID, accessToken) {
     let nextPageUrl = apiUrl;
     let params = {
         fields: fields,
-        access_token: accessToken
+        access_token: accessToken,
+        limit: 200
     };
 
-    try {
+  
+        let i = 0;
         do {
+            i++;
+            console.log('Fetching ads: ' + i + ' => Retreived ads: ' + allData.length)
             const response = await fetchWithRateLimit(nextPageUrl, params,fb_adAccountID);
             //console.log('API Response:', response); // Log the full response
             if (response.data) {
@@ -66,17 +54,17 @@ async function getAds(fb_adAccountID, accessToken) {
                 nextPageUrl = response.paging?.next; // Update the URL to the next page if available
                 params = {}; // Clear parameters since the next URL will contain them if needed
             } else {
-                console.error('No data field in response:', response);
+                console.error('PopulateAds.js: No data field in response:', response);
                 break; // Exit if no data is found
             }
         } while (nextPageUrl);
-    } catch (error) {
-        console.error('Error fetching data:', error.response.data.error);
-         // Rethrow the error to be handled by the calling function
-    }
+
 
     return allData;
-}
+} 
+
+
+
 async function populateAds(facebookAdData, postgres) {
     const query = `
         INSERT INTO fb_ad (
@@ -130,7 +118,7 @@ async function populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessT
     try { 
         const facebookAdData = await getAds(fb_adAccountID, accessToken);
         if (!facebookAdData) {
-            throw new Error('No ads data fetched.');
+            throw new Error('PopulateAds.js: No ads data fetched.');
         }
         for (let ad of facebookAdData) {
             const adData = {
@@ -156,7 +144,7 @@ async function populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessT
             await populateAds(adData, postgres);
         }
     } catch (error) {
-        console.error('Error during operation:', error);
+        console.error('PopulateAds.js: Error during operation:', error);
     } 
 }
 

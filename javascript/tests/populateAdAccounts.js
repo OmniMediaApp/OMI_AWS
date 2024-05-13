@@ -13,12 +13,12 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     const response = await axios.get(url, { params });
     const adAccountUsage = response.headers['x-business-use-case-usage'];
     if (!adAccountUsage) {
-      console.error('No business use case usage data found in the headers.');
+      console.error('PopulateAdAccount.js: No business use case usage data found in the headers.');
       return null;
     }
     const usageData = JSON.parse(adAccountUsage);
     if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('Usage data is missing or does not contain expected array elements.');
+        console.error('PopulateAdAccount.js: Usage data is missing or does not contain expected array elements.');
         return null;
     }
 
@@ -26,17 +26,19 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     // Dynamically adjust waiting based on usage
     const maxUsage = Math.max(call_count, total_cputime, total_time);
+
+    console.log(`PopulateAdAccount.js: API USAGE ${maxUsage}%`)
     if (maxUsage >= 90) {
-        console.log('API usage nearing limit. Adjusting request rate.');
-        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
+        console.log('PopulateAdAccount.js: API usage nearing limit.');
+        //await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
     }
 
     if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        console.log(`PopulateAdAccount.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
         await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
     }
     if (response.status == 400){
-      console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+      console.log(`PopulateAdAccount.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
       await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
       console.log(response.data);
       return fetchWithRateLimit(url, params, fb_adAccountID)
@@ -98,9 +100,9 @@ async function populateAdAccounts(postgres, facebookAdAccountData) {
 
   try {
     await postgres.query(query, values);
-    console.log(`Inserted or updated ad account: ${facebookAdAccountData.account_id} successfully`);
+    console.log(`PopulateAdAccount.js: Inserted or updated ad account: ${facebookAdAccountData.account_id} successfully`);
   } catch (err) {
-    console.error('Insert or update error:', err.stack);
+    console.error('PopulateAdAccount.js: Insert or update error:', err.stack);
     process.exit(1);
   }
 }
@@ -110,9 +112,9 @@ async function populateAdAccountsMain(postgres, omniBusinessId, fb_adAccountID, 
 
   try {
     const facebookAdAccountData = await getAdAccounts(fb_adAccountID, accessToken);
-    // console.log({facebookAdAccountData})
+     //console.log({facebookAdAccountData})
     if (!facebookAdAccountData) {
-      throw new Error('Invalid ad account data fetched.');
+      throw new Error('PopulateAdAccount.js: Invalid ad account data fetched.');
       
     }
 
@@ -138,7 +140,7 @@ async function populateAdAccountsMain(postgres, omniBusinessId, fb_adAccountID, 
       await populateAdAccounts(postgres, adAccountData);
     }
    catch (error) {
-    console.error('An error occurred in the main flow', error);
+    console.error('PopulateAdAccount.js: An error occurred in the main flow', error);
   } finally {
     // await client.end();
   }
