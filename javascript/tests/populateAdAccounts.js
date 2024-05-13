@@ -2,50 +2,62 @@ require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
-// Log the environment variables for database connection
-// console.log("Environment Variables:", {
-//   user: process.env.DB_USER,
-//   host: process.env.DB_HOST,
-//   database: process.env.DB_DATABASE,
-//   password: process.env.DB_PASSWORD,
-//   port: process.env.DB_PORT,
-// });
+// Function to handle rate limiting
 
-// const dbOptions = {
-//   user: process.env.DB_USER,
-//   host: process.env.DB_HOST,
-//   database: process.env.DB_DATABASE,
-//   password: process.env.DB_PASSWORD,
-//   port: process.env.DB_PORT,
-// };
 
-// const client = new Client(dbOptions);
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// async function connectToDatabase() {
-//   try {
-//     await client.connect();
-//     console.log('Connected to the database');
-//   } catch (err) {
-//     console.error('Database connection error', err.stack);
-//     process.exit(1);
-//   }
-// }
+async function fetchWithRateLimit(url, params, fb_adAccountID) {
+    const account_id = fb_adAccountID.split('_')[1];
+
+    const response = await axios.get(url, { params });
+    const adAccountUsage = response.headers['x-business-use-case-usage'];
+    if (!adAccountUsage) {
+      console.error('No business use case usage data found in the headers.');
+      return null;
+    }
+    const usageData = JSON.parse(adAccountUsage);
+    if (!usageData[account_id] || usageData[account_id].length === 0) {
+        console.error('Usage data is missing or does not contain expected array elements.');
+        return null;
+    }
+
+    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+
+    // Dynamically adjust waiting based on usage
+    const maxUsage = Math.max(call_count, total_cputime, total_time);
+    if (maxUsage >= 90) {
+        console.log('API usage nearing limit. Adjusting request rate.');
+        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
+    }
+
+    if (estimated_time_to_regain_access > 0) {
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} seconds.`);
+        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
+    }
+
+    return response.data;
+}
+
 
 async function getAdAccounts(fb_adAccountID, accessToken) {
-  try {
-    const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-    const fields = `name,business,account_status,business_name,created_time,existing_customers,funding_source,funding_source_details,id,is_personal,is_prepay_account,line_numbers,owner,spend_cap,timezone_id,timezone_name,timezone_offset_hours_utc`;
- 
+  const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
+  const fields = `name,business,account_status,business_name,created_time,existing_customers,funding_source,funding_source_details,id,is_personal,is_prepay_account,line_numbers,owner,spend_cap,timezone_id,timezone_name,timezone_offset_hours_utc`;
 
-    const response = await axios.get(apiUrl, {
-      params: {
+  try {
+    let url = apiUrl;
+    let params = {
         fields: fields,
         access_token: accessToken
-      }
-    });
-    return response.data;
+    };
+    const response = await fetchWithRateLimit(url, params,fb_adAccountID);
+    if (!response) {
+      console.error('No data received from API');
+      return null; // Exit if no data is received
+    }
+    return response; // Directly return the ad account details
   } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('Error fetching ad account data:', error);
   }
 }
 

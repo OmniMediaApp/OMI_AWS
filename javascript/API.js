@@ -213,7 +213,7 @@ app.post('/populateFaceBook', async (req, res) => {
     const fb_businessID = req.body.fb_businessID;
     const fb_adAccountID = req.body.fb_adAccountID;
     const accessToken = req.body.accessToken;
-    console.log({accessToken})
+    
     const result = await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
     res.send(result);
   } catch (error) {
