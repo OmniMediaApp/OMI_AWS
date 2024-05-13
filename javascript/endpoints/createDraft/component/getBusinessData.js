@@ -16,7 +16,7 @@ async function getBusinessData(db, uid) {
         lastUsedFacebookAdAccount: userDoc.data().lastUsedFacebookAdAccount,
         lastUsedFacebookPixel: userDoc.data().lastUsedFacebookPixel,
         lastUsedFacebookPage: userDoc.data().lastUsedFacebookPage,
-        facebookAccessToken: businessDoc.data().facebookOAuthAccessToken,
+        facebookAccessToken: businessDoc.data().facebookAccessToken,
       }
     } 
   } 

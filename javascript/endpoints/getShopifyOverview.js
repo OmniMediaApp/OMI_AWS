@@ -5,11 +5,13 @@ const desiredTimezoneOffset = '-05:00'; // New York timezone offset
 
 
 
-async function getShopifyOverview(db, req, res) {
+async function getShopifyOverview(db, req, res, postgres) {
 
   const dateStart = req.query.dateStart;
   const dateEnd = req.query.dateEnd;
   const uid = req.query.uid;
+
+  console.log(uid)
 
 
   // Get the current date
@@ -86,17 +88,29 @@ async function getShopifyOverview(db, req, res) {
 
 
   async function getProductCost(shopifyDomain, shopifyAccessToken, inventoryIDs) {
-    let productCosts = []
-    const COGSRef = db.collection('ShopifyProductCOGS').doc(shopifyDomain);
-    const doc = await COGSRef.get();
-    if (!doc.exists) {
-      console.log('No such document!');
-    } else {
-      productCosts = doc.data().data;
-    }
+    // let productCosts = []
+    // const COGSRef = db.collection('ShopifyProductCOGS').doc(shopifyDomain);
+    // const doc = await COGSRef.get();
+    // if (!doc.exists) {
+    //   console.log('No such document!');
+    // } else {
+    //   productCosts = doc.data().data;
+    // }
+    // return productCosts
 
+    const omniBusinessID = 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd'
 
-    return productCosts
+      try {
+          const result = await postgres.query(`SELECT * FROM public.shopify_products WHERE omni_business_id = '${omniBusinessID}'`);
+          console.log('Query result:', result.rows);
+          return result.rows;
+      } catch (error) {
+          console.error('Error executing query:', error);
+      }
+  
+  
+  executeQuery();
+  
 
   }
 
@@ -105,46 +119,23 @@ async function getShopifyOverview(db, req, res) {
   async function getFacebookSpend(facebookAccessToken, dateStart, dateEnd) {
     try {
       const accessToken = facebookAccessToken;
+      const adAccountID = 'act_2044655035664767'
 
-      // Step 1: Fetch ad accounts
-      const url1 = `https://graph.facebook.com/v13.0/me/adaccounts?access_token=${accessToken}`;
-      //console.log(url1);
-      const response1 = await fetch(url1);
-      const data = await response1.json();
-      const adAccounts = data.data;
+      const url2 = `https://graph.facebook.com/v13.0/${adAccountID}/insights?fields=spend,impressions,clicks,reach&time_range={'since':'${dateStart}','until':'${dateEnd}'}&access_token=${accessToken}`;
+      const response = await axios.get(url2);
+      const facebookData = response.data;
+      //console.log(facebookData)
 
-      // Step 2: Fetch ad spend and other metrics for each account
-      const spends = await Promise.all(adAccounts.map(async account => {
-        const url2 = `https://graph.facebook.com/v13.0/${account.id}/insights?fields=spend,impressions,clicks,reach&time_range={'since':'${dateStart}','until':'${dateEnd}'}&access_token=${accessToken}`;
-        //console.log(url2);
-        const response2 = await fetch(url2);
-        const spendData = await response2.json();
-        if (spendData.data.length > 0) {
-          return {
-            spend: parseFloat(spendData.data[0].spend),
-            impressions: spendData.data[0].impressions,
-            clicks: spendData.data[0].clicks,
-            reach: spendData.data[0].reach
-          };
-        } else {
-          return { spend: 0, impressions: 0, clicks: 0, reach: 0 };
-        }
-      }));
-
-      // Step 3: Aggregate total metrics
-      const totalMetrics = spends.reduce((acc, metrics) => {
         return {
-          spend: acc.spend + metrics.spend,
-          impressions: acc.impressions + parseInt(metrics.impressions, 10),
-          clicks: acc.clicks + parseInt(metrics.clicks, 10),
-          reach: acc.reach + parseInt(metrics.reach, 10)
+          spend: parseFloat(facebookData.data[0].spend),
+          impressions: facebookData.data[0].impressions,
+          clicks: facebookData.data[0].clicks,
+          reach: facebookData.data[0].reach
         };
-      }, { spend: 0, impressions: 0, clicks: 0, reach: 0 });
 
-      return totalMetrics;
+ 
     } catch (error) {
-      console.error('Error fetching ad metrics:', error);
-      throw error; // Rethrow the error for handling upstream
+      console.error('Error fetching facebook metrics:', error.response.data);
     }
   }
 
@@ -156,7 +147,7 @@ async function getShopifyOverview(db, req, res) {
 
     async function getStoreData(uid) {
       const userRef = db.collection('users').doc(uid);
-      console.log(uid)
+      //console.log(uid)
       const userDoc = await userRef.get();
       if (!userDoc.exists) {
         console.log('User doesnt exist');
@@ -169,7 +160,7 @@ async function getShopifyOverview(db, req, res) {
           return {
             shopifyAdminAccessToken: businessDoc.data().shopifyAdminAccessToken,
             shopifyDomain: businessDoc.data().shopifyDomain,
-            facebookAccessToken: businessDoc.data().facebookOAuthAccessToken,
+            facebookAccessToken: businessDoc.data().facebookAccessToken,
           }
         }
       }
@@ -193,27 +184,45 @@ async function getShopifyOverview(db, req, res) {
 
 
     const productCosts = await getProductCost(storeData.shopifyDomain, storeData.shopifyAdminAccessToken);
-    //console.log(productCosts[2])
+    console.log(productCosts)
     // Merge order data with product data
     const allData = [];
 
+    console.log(orders.length)
+
+
+
     for (let i = 0; i < orders.length; i++) {
+      let foundMatch = false; // Flag to track if a match is found for the current order
+  
       for (let j = 0; j < productCosts.length; j++) {
-        if (orders[i].productID == productCosts[j].productID) {
-          allData.push({
-            productID: orders[i].productID,
-            quantity: orders[i].quantity,
-            totalPrice: orders[i].totalPrice,
-            orderNumber: orders[i].orderNumber,
-            productName: productCosts[j].productName,
-            variantTitle: productCosts[j].variantTitle,
-            variantID: productCosts[j].variantID,
-            inventoryID: productCosts[j].inventoryID,
-            productCost: productCosts[j].productCost,
-          });
-        }
+          if (orders[i].productID == productCosts[j].product_id) {
+              foundMatch = true; // Set the flag to true if a match is found
+  
+              allData.push({
+                  productID: orders[i].productID,
+                  quantity: orders[i].quantity,
+                  totalPrice: orders[i].totalPrice,
+                  orderNumber: orders[i].orderNumber,
+                  productName: productCosts[j].product_name,
+                  variantTitle: productCosts[j].variant_title,
+                  variantID: productCosts[j].variant_id,
+                  inventoryID: productCosts[j].inventory_id,
+                  productCost: productCosts[j].product_cost,
+              });
+  
+              break; // Exit the inner loop once a match is found
+          }
       }
-    }
+  
+      if (!foundMatch) {
+          // Handle case where no match is found for the current order
+          console.log('No match found for order:', orders[i].orderNumber);
+      }
+  }
+
+  
+  
 
     //console.log(allData)
 
@@ -244,18 +253,16 @@ async function getShopifyOverview(db, req, res) {
 
 
     return ({
-      data: {
         orders: totalOrders,
         sales: totalRevenue,
         cogs: totalProductCost,
         aov: aov,
         productsOrdered: ordersCount,
         facebookSpend: facebookSpend,
-        facebookImpressions: facebookImpressions,
-        facebookClicks: facebookClicks,
-        facebookReach: facebookReach,
+        facebookImpressions: facebookImpressions * 1,
+        facebookClicks: facebookClicks * 1,
+        facebookReach: facebookReach * 1,
         profit: totalRevenue - (totalProductCost + facebookSpend),
-      }
     })
 
   }

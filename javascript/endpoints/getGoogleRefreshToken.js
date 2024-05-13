@@ -11,7 +11,7 @@ async function getGoogleRefreshToken(db, userId) {
     const busRef = db.collection('businesses').doc(businessID);
     const busSnap = await busRef.get();
     const authCode = busSnap.data().googleOAuthCode; 
-    console.log("businedd ID is ",businessID);
+    console.log("business ID is ",businessID);
 
     const clientId = process.env.GOOGLE_CLIENT_ID
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET
