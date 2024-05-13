@@ -9,7 +9,7 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     const account_id = fb_adAccountID.split('_')[1];
 
     const response = await axios.get(url, { params });
-    const adAccountUsage = response.headers['x-ad-account-usage'];
+    const adAccountUsage = response.headers['x-business-use-case-usage'];
     if (!adAccountUsage) {
       console.error('No business use case usage data found in the headers.');
       return null;
@@ -30,10 +30,16 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     }
 
     if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} seconds.`);
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
         await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
     }
 
+    if (response.status == 400){
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+        console.log(response.data);
+        return fetchWithRateLimit(url, params, fb_adAccountID)
+    }
     return response.data;
 }
 
@@ -119,7 +125,7 @@ async function populateAdCreatives(facebookCreativesData, postgres) {
 
 async function populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken) {
     const facebookCreativesData = await getAdCreatives(fb_adAccountID, accessToken);
-    console.log('Ad Creatives Data:', facebookCreativesData); // Log the full response
+    //console.log('Ad Creatives Data:', facebookCreativesData); // Log the full response
 
     // Early exit if data is missing or invalid
     if (!facebookCreativesData) {

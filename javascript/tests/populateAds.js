@@ -9,10 +9,11 @@ const axios = require('axios');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRateLimit(url, params, fb_adAccountID) {
+    console.log(fb_adAccountID);
     const account_id = fb_adAccountID.split('_')[1];
 
     const response = await axios.get(url, { params });
-    const adAccountUsage = response.headers['x-ad-account-usage'];
+    const adAccountUsage = response.headers['x-business-use-case-usage'];
     if (!adAccountUsage) {
       console.error('No business use case usage data found in the headers.');
       return null;
@@ -33,14 +34,20 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
     }
 
     if (estimated_time_to_regain_access > 0) {
-        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} seconds.`);
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
         await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
+    }
+    if (response.status == 400){
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+        console.log(response.data);
+        return fetchWithRateLimit(url, params, fb_adAccountID)
     }
 
     return response.data;
 }
 
-async function getAds(fb_adAccountID, accessToken, fb_adAccountID) {
+async function getAds(fb_adAccountID, accessToken) {
     const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/ads`;
     const fields = 'account_id,ad_active_time,ad_review_feedback,ad_schedule_end_time,ad_schedule_start_time,adset_id,campaign_id,configured_status,conversion_domain,created_time,creative,id,effective_status,bid_amount,last_updated_by_app_id,name,preview_shareable_link,recommendations,source_ad,source_ad_id,status,tracking_specs,updated_time,adcreatives{id}';
     let allData = [];
@@ -52,7 +59,7 @@ async function getAds(fb_adAccountID, accessToken, fb_adAccountID) {
 
     try {
         do {
-            const response = await fetchWithRateLimit(nextPageUrl, params);
+            const response = await fetchWithRateLimit(nextPageUrl, params,fb_adAccountID);
             //console.log('API Response:', response); // Log the full response
             if (response.data) {
                  allData.push(...response.data); // Collect all ad data across pages
@@ -64,8 +71,8 @@ async function getAds(fb_adAccountID, accessToken, fb_adAccountID) {
             }
         } while (nextPageUrl);
     } catch (error) {
-        console.error('Error fetching data:', error);
-        throw error; // Rethrow the error to be handled by the calling function
+        console.error('Error fetching data:', error.response.data.error);
+         // Rethrow the error to be handled by the calling function
     }
 
     return allData;

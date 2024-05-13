@@ -2,46 +2,69 @@ require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
 
-const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
-let requestCount = 0;
-let resetTime = Date.now() + 3600000; // 1 hour from now
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Function to handle rate limiting
-async function fetchWithRateLimit(url, params) {
-    if (requestCount >= 200) {
-        const now = Date.now();
-        if (now < resetTime) {
-            const waitTime = resetTime - now;
-            console.log(`Rate limit reached. Waiting for ${waitTime / 1000} seconds.`);
-            await sleep(waitTime);
-        }
-        requestCount = 0; // Reset count after waiting
-        resetTime = Date.now() + 3600000; // Set new reset time
-    }
+async function fetchWithRateLimit(url, params, fb_adAccountID) {
+    const account_id = fb_adAccountID.split('_')[1];
 
     const response = await axios.get(url, { params });
-    requestCount++; // Increment request count after each successful call
+    const adAccountUsage = response.headers['x-business-use-case-usage'];
+    if (!adAccountUsage) {
+      console.error('No business use case usage data found in the headers.');
+      return null;
+    }
+    const usageData = JSON.parse(adAccountUsage);
+    if (!usageData[account_id] || usageData[account_id].length === 0) {
+        console.error('Usage data is missing or does not contain expected array elements.');
+        return null;
+    }
+
+    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+
+    // Dynamically adjust waiting based on usage
+    const maxUsage = Math.max(call_count, total_cputime, total_time);
+    if (maxUsage >= 90) {
+        console.log('API usage nearing limit. Adjusting request rate.');
+        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
+    }
+
+    if (estimated_time_to_regain_access > 0) {
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
+    }
+    if (response.status == 400){
+      console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+      await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+      console.log(response.data);
+      return fetchWithRateLimit(url, params, fb_adAccountID)
+  }
     return response.data;
 }
 
-async function getCampaigns(fb_adAccountID, accessToken) {
-  const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-  const fields = 'campaigns{name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time}';
-  let allCampaigns = [];
-  let nextPageUrl = `${apiUrl}?fields=${fields}&access_token=${accessToken}`;
 
+async function getCampaigns(fb_adAccountID, accessToken) {
+  const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/campaigns`;
+  const fields = 'name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time';
+  
+  let allCampaigns = [];
+  let url = apiUrl;
+  let params = {
+    fields: fields,
+    access_token: accessToken,
+    limit: 50
+};
   try {
       do {
-          const response = await fetchWithRateLimit(nextPageUrl);
+          const response = await fetchWithRateLimit(url, params);
           //console.log('API Response:', response); // Log the full response
-          if (response && response.campaigns && response.campaigns.data) {
-              allCampaigns.push(...response.campaigns.data);
-              nextPageUrl = response.campaigns.paging && response.campaigns.paging.next ? response.campaigns.paging.next : null;
+          if (response && response.data ) {
+              allCampaigns.push(...response.data);
+              url =  response.paging?.next;
           } else {
-              console.error('No campaigns data in response:', response);
-              nextPageUrl = null; // Ensure loop exits if no further data
+              //console.error('No campaigns data in response:', response); 
+              // Ensure loop exits if no further data
           }
-      } while (nextPageUrl);
+      } while (url);
   } catch (error) {
       console.error('Error fetching campaigns:', error);
       throw error; // Rethrow the error to be handled by the calling function

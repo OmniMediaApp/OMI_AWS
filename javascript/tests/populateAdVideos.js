@@ -1,47 +1,58 @@
 require('dotenv').config({ path: '../.env' });
 const { Client } = require('pg');
 const axios = require('axios');
+const { response } = require('express');
 
 
-const sleep = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-let requestCount = 0;
-let resetTime = Date.now() + 3600000; // 1 hour from now
+async function fetchWithRateLimit(url, params, fb_adAccountID) {
+    const account_id = fb_adAccountID.split('_')[1];
 
-// Function to handle rate limiting
-async function fetchWithRateLimit(url, params) {
-    if (requestCount >= 200) {
-        const now = Date.now();
-        if (now < resetTime) {
-            const waitTime = resetTime - now;
-            console.log(`Rate limit reached. Waiting for ${waitTime / 1000} seconds.`);
-            await sleep(waitTime);
-        }
-        requestCount = 0; // Reset count after waiting
-        resetTime = Date.now() + 3600000; // Set new reset time
+    const response = await axios.get(url, { params });
+    const adAccountUsage = response.headers['x-business-use-case-usage'];
+    if (!adAccountUsage) {
+      console.error('No business use case usage data found in the headers.');
+      return null;
+    }
+    const usageData = JSON.parse(adAccountUsage);
+    if (!usageData[account_id] || usageData[account_id].length === 0) {
+        console.error('Usage data is missing or does not contain expected array elements.');
+        return null;
     }
 
-    try {
-        const response = await axios.get(url, { params });
-        requestCount++; // Increment request count after each successful call
-        return response.data;
-    } catch (error) {
-        console.error(`Request failed with status code: ${error.response?.status}`);
-        console.error(`Error details: ${error.response?.data || error.message}`);
-        console.error(`Full error response: ${JSON.stringify(error.response.data)}`);
-        throw error; // Re-throw the error to handle it in the calling function
+    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+
+    // Dynamically adjust waiting based on usage
+    const maxUsage = Math.max(call_count, total_cputime, total_time);
+    if (maxUsage >= 90) {
+        console.log('API usage nearing limit. Adjusting request rate.');
+        await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
     }
+
+    if (estimated_time_to_regain_access > 0) {
+        console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
+    }
+    if (response.status == 400){
+      console.log(`Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
+      await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+      console.log(response.data);
+      return fetchWithRateLimit(url, params, fb_adAccountID)
+  }
+
+    return response.data;
 }
 
 
   async function getMedia (fb_adAccountID,accessToken) {
    
 
-      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}`;
-      const fields = 'advideos{ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video}';
+      const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/advideos`;
+      const fields = 'ad_breaks,created_time,description,embed_html,embeddable,format,id,is_instagram_eligible,length,live_status,place,post_id,post_views,privacy,published,scheduled_publish_time,source,status,title,updated_time,views,captions,event,from,icon,is_crossposting_eligible,is_crosspost_video';
        // Replace with your Facebook access token
        let allAdVideos = [];
-       let nextPageUrl = `${apiUrl}?fields=${fields}&access_token=${accessToken}`;
+       
        let url = apiUrl;
        let params = {
            fields: fields,
@@ -49,18 +60,18 @@ async function fetchWithRateLimit(url, params) {
        };
        try {
         do {
-            const response = await fetchWithRateLimit(nextPageUrl);
+            const response = await fetchWithRateLimit(url, params,fb_adAccountID);
             //console.log('API Response:', response); // Log the full response
-            if (response && response.advideos && response.advideos.data) {
-              allAdVideos.push(...response.advideos.data);
-                nextPageUrl = response.advideos.paging.next ? response.advideos.paging.next : null; 
+            if (response && response.data) {
+              allAdVideos.push(...response.data);
+                nextPageUrl = response.paging.next ? response.paging.next : null; 
             } else {
                 console.error('No adVideo data in response:', response);
                 nextPageUrl = null; // Ensure loop exits if no further data
             }
         } while (nextPageUrl);
     } catch (error) {
-        console.error('Error fetching campaigns:', error);
+        console.error('Error fetching campaigns:', error, response);
         throw error; // Rethrow the error to be handled by the calling function
     }
   

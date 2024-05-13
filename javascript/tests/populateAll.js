@@ -30,16 +30,16 @@ async function populateDataDetails(postgres, omniBusinessId, fb_adAccountID, acc
     // await populateCampaignsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
     //   console.log("Campaigns populated successfully.");
 
-     await populateAdSetsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+    //  await populateAdSetsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
     //   console.log("AdSets populated successfully.");
 
-    // await populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-    //   console.log("Ads populated successfully.");
+    await populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+      console.log("Ads populated successfully.");
 
-    // await populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
-    //   console.log("Ad Creatives, and Ad media populated successfully.");
-    // await populateAdVideos(postgres, omniBusinessId, fb_adAccountID, accessToken)
-    //   console.log("Ad Videos populated successfully.");
+    await populateAdCreativesMain(postgres, omniBusinessId, fb_adAccountID, accessToken);
+      console.log("Ad Creatives, populated successfully.");
+    await populateAdVideos(postgres, omniBusinessId, fb_adAccountID, accessToken)
+      console.log("Ad Videos populated successfully.");
   } catch (error) {
       console.error("An error occurred in populateDataDetails:", error);
   }
@@ -47,11 +47,11 @@ async function populateDataDetails(postgres, omniBusinessId, fb_adAccountID, acc
 async function populateAll (postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken) {
 
 try {
-   //await populateSelectedAccount(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
+   await populateSelectedAccount(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
    await populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken);  
   
   //fetchAdAccountUsage(fb_adAccountID, accessToken);
-  console.log("All data populated successfully.");
+  //console.log("All data populated successfully.");
 }catch (error) {
     console.error("An error occurred in populateAll:", error);
   }
