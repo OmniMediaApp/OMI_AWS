@@ -18,6 +18,7 @@ async function createDraft(db, req, res) {
     //FROM FIRESTORE
     const businessData = await getBusinessData(db, uid);
     const businessID = businessData.businessID;
+    console.log(businessData)
     const lastUsedFacebookAdAccount = businessData.lastUsedFacebookAdAccount;
     const lastUsedFacebookPixel = businessData.lastUsedFacebookPixel;
     const lastUsedFacebookPage = businessData.lastUsedFacebookPage;

@@ -14,6 +14,9 @@ const serviceAccount = require('./ServiceAccountKey.json')
 const handleMediaUpload = require('./endpoints/uploadMedia'); // Adjust './uploadMedia' as necessary based on your directory structure
 const getGoogleStats = require('./endpoints/getGoogleStats');
 const populateAll = require('./tests/populateAll');
+const getFacebookAccessToken = require('./endpoints/getFacebookRefreshToken');
+const getAds = require('./endpoints/databaseQueries/getAds');
+const getAdAccountsByBID = require('./endpoints/databaseQueries/getAdAccountsByBID');
 //const saveHistoricalShopifyStats = require('./endpoints/saveHistoricalShopifyStats');
 require('dotenv').config();
 
@@ -134,7 +137,7 @@ app.get('/getShopifyProducts', async (req, res) => {
 
 app.get('/saveShopifyProductCOGS', async (req, res) => {
   try {
-    const result = await saveShopifyProductCOGS(db, req);
+    const result = await saveShopifyProductCOGS(db, req, postgres);
     res.send(result);
   } catch (error) {
     console.error(error);
@@ -144,7 +147,7 @@ app.get('/saveShopifyProductCOGS', async (req, res) => {
 
 app.get('/getShopifyOverview', async (req, res) => {
   try {
-    const result = await getShopifyOverview(db, req);
+    const result = await getShopifyOverview(db, req, res, postgres);
     res.send(result);
   } catch (error) {
     console.error(error);
@@ -193,6 +196,17 @@ app.post('/getGoogleRefreshToken', async (req, res) => {
   }
 });
 
+app.post('/getFacebookRefreshToken', async (req, res) => {
+  try {
+    const userID = req.body.userID;
+    const result = await getFacebookAccessToken(db, userID);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while fetching Facebook access token.' });
+  }
+});
+
 app.post('/populateFaceBook', async (req, res) => {
   try {
     const omniBusinessId = req.body.omniBusinessId;
@@ -207,6 +221,32 @@ app.post('/populateFaceBook', async (req, res) => {
     res.status(500).send({ error: 'An error occurred while populating all.' });
   }
 });
+
+app.get('/getAds', async (req, res) => {
+  try {
+    console.log(req)
+    const result = await getAds(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+app.get('/getAdAccountsByBID', async (req, res) => {
+  try {
+    const result = await getAdAccountsByBID(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+
+
+
 
 // Start the server
 app.listen(PORT, () => {
