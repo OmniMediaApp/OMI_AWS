@@ -12,15 +12,9 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     const response = await axios.get(url, { params });
     const adAccountUsage = response.headers['x-business-use-case-usage'];
-    if (!adAccountUsage) {
-      console.error('PopulateAdAccount.js: No business use case usage data found in the headers.');
-      return null;
-    }
+ 
     const usageData = JSON.parse(adAccountUsage);
-    if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('PopulateAdAccount.js: Usage data is missing or does not contain expected array elements.');
-        return null;
-    }
+
 
     const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
 
@@ -29,21 +23,19 @@ async function fetchWithRateLimit(url, params, fb_adAccountID) {
 
     console.log(`PopulateAdAccount.js: API USAGE ${maxUsage}%`)
     if (maxUsage >= 90) {
-        console.log('PopulateAdAccount.js: API usage nearing limit.');
+        //console.log('PopulateAdAccount.js: API usage nearing limit.');
         //await sleep((100 - maxUsage) * 1000); // Sleep time is dynamically calculated to prevent hitting the limit
     }
 
-    if (estimated_time_to_regain_access > 0) {
-        console.log(`PopulateAdAccount.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep(estimated_time_to_regain_access * 1000); // Wait for the block to lift
-    }
+
     if (response.status == 400){
       console.log(`PopulateAdAccount.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
       await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
       console.log(response.data);
       return fetchWithRateLimit(url, params, fb_adAccountID)
-  }
+  } else {
     return response.data;
+  }
 }
 
 
@@ -64,7 +56,7 @@ async function getAdAccounts(fb_adAccountID, accessToken) {
     }
     return response; // Directly return the ad account details
   } catch (error) {
-    console.error('Error fetching ad account data:', error);
+    console.error('Error fetching ad account data:', error.response.data.error.message);
   }
 }
 

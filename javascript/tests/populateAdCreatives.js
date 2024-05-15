@@ -5,28 +5,49 @@ const axios = require('axios');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchWithRateLimit(url, params, fb_adAccountID) {
+async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, maxRetries = 3) {
     const account_id = fb_adAccountID.split('_')[1];
 
-    const response = await axios.get(url, { params });
-    const adAccountUsage = response.headers['x-business-use-case-usage'];
+    try {
+        const response = await axios.get(url, { params });
+        const adAccountUsage = response.headers['x-business-use-case-usage'];
+        const usageData = JSON.parse(adAccountUsage);
+        const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
 
-    const usageData = JSON.parse(adAccountUsage);
+        // Dynamically adjust waiting based on usage
+        const maxUsage = Math.max(call_count, total_cputime, total_time);
+        console.log(`PopulateAdCreative.js: API USAGE ${maxUsage}%`);
 
+        if (response.status == 400 || response.status == 500) {
+            if (retryCount < maxRetries) {
+                console.log(`PopulateAdCreative.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes. Retrying (${retryCount + 1}/${maxRetries})...`);
+                await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+                return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+            } else {
+                console.log(`PopulateAdCreative.js: Failed after ${maxRetries} retries.`);
+                throw new Error(`Failed after ${maxRetries} retries.`);
+            }
+        } else {
+            return response.data;
+        }
+    } catch (error) {
+        if (error.response && (error.response.status == 400 || error.response.status == 500)) {
+            if (retryCount < maxRetries) {
+                const adAccountUsage = error.response.headers['x-business-use-case-usage'];
+                const usageData = JSON.parse(adAccountUsage);
+                const { estimated_time_to_regain_access } = usageData[account_id][0];
 
-    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
-
-    // Dynamically adjust waiting based on usage
-    const maxUsage = Math.max(call_count, total_cputime, total_time);
-    console.log(`PopulateAdCreative.js: API USAGE ${maxUsage}%`)
-
-    if (response.status == 400){
-        console.log(`PopulateAdCreative.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-        await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
-        console.log(response.data);
-        return fetchWithRateLimit(url, params, fb_adAccountID)
-    } else {
-        return response.data;
+                console.log(`PopulateAdCreative.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes. Retrying (${retryCount + 1}/${maxRetries})...`);
+                await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+                return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+            } else {
+                console.log(`PopulateAdCreative.js: Failed after ${maxRetries} retries.`);
+                throw new Error(`Failed after ${maxRetries} retries.`);
+            }
+        } else {
+            console.log(`PopulateAdCreative.js: Encountered unexpected error.`, error);
+            throw error;
+        }
     }
 }
 

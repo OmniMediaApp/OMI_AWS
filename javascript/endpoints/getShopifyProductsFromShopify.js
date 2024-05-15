@@ -8,7 +8,7 @@ const desiredTimezoneOffset = '-05:00'; // New York timezone offset
 
 
 
-async function getShopifyProducts(db, req) {
+async function getShopifyProductsFromShopify(db, req) {
 
   const today = new Date();
   const timeZoneOffset = -5; // New York timezone offset is UTC-5
@@ -163,4 +163,4 @@ function getNextPageLink(linkHeader) {
   return null; // For simplicity, returning null here. You should implement this logic.
 }
 
-module.exports = getShopifyProducts;
+module.exports = getShopifyProductsFromShopify;
