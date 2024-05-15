@@ -292,12 +292,10 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-<<<<<<< HEAD
 // Webhook event handling endpoint
 app.post('/webhook', (req, res) => {
   const data = req.body;
   console.log("hello");
-=======
 app.post('/uploadFile', upload.single('file'), async (req, res) => {
 
 
@@ -388,7 +386,6 @@ app.get('/downloadFileFromS3', async (req, res) => {
 
 
 
->>>>>>> 11e9e2202f3c4ff5934875df8d5c4e611728599a
 
   console.log(JSON.stringify(data, null, 2));
   insertFbWebhookData(JSON.stringify(data));
