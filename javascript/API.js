@@ -11,7 +11,8 @@ const createDraft = require('./endpoints/createDraft/createDraft');
 const cors = require('cors');
 const admin = require('firebase-admin');
 const serviceAccount = require('./ServiceAccountKey.json')
-const handleMediaUpload = require('./endpoints/uploadMedia'); // Adjust './uploadMedia' as necessary based on your directory structure
+const handleAdAccountChange = require('./endpoints/handleFacebookWebhook'); // Adjust './uploadMedia' as necessary based on your directory structure
+const insertFbWebhookData = require('./endpoints/handleFacebookWebhook');
 const getGoogleStats = require('./endpoints/getGoogleStats');
 const populateAll = require('./tests/populateAll');
 const getFacebookAccessToken = require('./endpoints/getFacebookRefreshToken');
@@ -165,6 +166,7 @@ app.get('/createDraft', async (req, res) => {
   }
 
 }); 
+854522159611705
 
 app.get('/createFacebookAd', async (req, res) => {
   try{
@@ -215,7 +217,7 @@ app.post('/populateFaceBook', async (req, res) => {
     const accessToken = req.body.accessToken;
     
     const result = await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-    res.send({data: result});
+    res.send(result);
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while populating all.' });
@@ -242,10 +244,43 @@ app.get('/getAdAccountsByBID', async (req, res) => {
     res.status(500).send({ error: 'An error occurred while querying db' }); 
   }
 });
+// Webhook verification endpoint
+app.get('/webhook', (req, res) => {
+  console.log("hello");
 
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+   
 
+  if (mode && token) {
+      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+          console.log('WEBHOOK_VERIFIED');
+          res.status(200).send(challenge);
+      } else {
+          res.sendStatus(403);
+      }
+  }
+});
 
+// Webhook event handling endpoint
+app.post('/webhook', (req, res) => {
+  const data = req.body;
+  console.log("hello");
 
+  console.log(JSON.stringify(data, null, 2));
+  insertFbWebhookData(JSON.stringify(data));
+  // if (data.object === 'ad_account') {
+  //     data.entry.forEach((entry) => {
+  //         const adAccountId = entry.id;
+  //         entry.changes.forEach((change) => {
+  //             handleAdAccountChange(adAccountId, change);
+  //         });
+  //     });
+  // }
+
+  res.status(200).send('EVENT_RECEIVED');
+});
 
 
 // Start the server
