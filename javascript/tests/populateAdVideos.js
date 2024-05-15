@@ -6,36 +6,70 @@ const { response } = require('express');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchWithRateLimit(url, params, fb_adAccountID) {
-    const account_id = fb_adAccountID.split('_')[1];
+async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, maxRetries = 3) {
+  const account_id = fb_adAccountID.split('_')[1];
 
-    const response = await axios.get(url, { params });
-    const adAccountUsage = response.headers['x-business-use-case-usage'];
-    if (!adAccountUsage) {
-      console.error('PopulateAdVideos.js: No business use case usage data found in the headers.');
-      return null;
-    }
-    const usageData = JSON.parse(adAccountUsage);
-    if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('PopulateAdVideos.js: Usage data is missing or does not contain expected array elements.');
-        return null;
-    }
+  try {
+      const response = await axios.get(url, { params });
+      const adAccountUsage = response.headers['x-business-use-case-usage'];
 
-    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+      if (!adAccountUsage) {
+          console.error('PopulateAdVideos.js: No business use case usage data found in the headers.');
+          return null;
+      }
 
-    // Dynamically adjust waiting based on usage
-    const maxUsage = Math.max(call_count, total_cputime, total_time);
-    console.log(`PopulateAdVideos.js: API USAGE ${maxUsage}%`)
+      const usageData = JSON.parse(adAccountUsage);
 
-    if (response.status == 400){
-      console.log(`PopulateAdVideos.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-      await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
-      console.log(response.data);
-      return fetchWithRateLimit(url, params, fb_adAccountID)
-  } else {
-    return response.data;
+      if (!usageData[account_id] || usageData[account_id].length === 0) {
+          console.error('PopulateAdVideos.js: Usage data is missing or does not contain expected array elements.');
+          return null;
+      }
+
+      const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+
+      // Dynamically adjust waiting based on usage
+      const maxUsage = Math.max(call_count, total_cputime, total_time);
+      console.log(`PopulateAdVideos.js: API USAGE ${maxUsage}%`);
+
+      if (response.status == 400 || response.status == 500) {
+          if (retryCount < maxRetries) {
+              console.log(`PopulateAdVideos.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes. Retrying (${retryCount + 1}/${maxRetries})...`);
+              await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+              return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+          } else {
+              console.log(`PopulateAdVideos.js: Failed after ${maxRetries} retries.`);
+              throw new Error(`Failed after ${maxRetries} retries.`);
+          }
+      } else {
+          return response.data;
+      }
+  } catch (error) {
+      if (error.response && (error.response.status == 400 || error.response.status == 500)) {
+          if (retryCount < maxRetries) {
+              const adAccountUsage = error.response.headers['x-business-use-case-usage'];
+              if (!adAccountUsage) {
+                  console.error('PopulateAdVideos.js: No business use case usage data found in the headers.');
+                  throw error;
+              }
+              const usageData = JSON.parse(adAccountUsage);
+              if (!usageData[account_id] || usageData[account_id].length === 0) {
+                  console.error('PopulateAdVideos.js: Usage data is missing or does not contain expected array elements.');
+                  throw error;
+              }
+              const { estimated_time_to_regain_access } = usageData[account_id][0];
+
+              console.log(`PopulateAdVideos.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes. Retrying (${retryCount + 1}/${maxRetries})...`);
+              await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
+              return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+          } else {
+              console.log(`PopulateAdVideos.js: Failed after ${maxRetries} retries.`);
+              throw new Error(`Failed after ${maxRetries} retries.`);
+          }
+      } else {
+          console.log(`PopulateAdVideos.js: Encountered unexpected error.`, error);
+          throw error;
+      }
   }
-
 }
 
 

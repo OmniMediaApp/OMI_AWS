@@ -4,33 +4,40 @@ const axios = require('axios');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchWithRateLimit(url, params, fb_adAccountID) {
-    const account_id = fb_adAccountID.split('_')[1];
 
-    const response = await axios.get(url, { params });
-    const adAccountUsage = response.headers['x-business-use-case-usage'];
-    if (!adAccountUsage) {
-      console.error('PopulateCampaigns.js: No business use case usage data found in the headers.');
-      return null;
-    }
-    const usageData = JSON.parse(adAccountUsage);
-    if (!usageData[account_id] || usageData[account_id].length === 0) {
-        console.error('PopulateCampaigns.js: Usage data is missing or does not contain expected array elements.');
-        return null;
-    }
+async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, maxRetries = 3) {
+  const account_id = fb_adAccountID.split('_')[1];
 
-    const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
+  try {
+      const response = await axios.get(url, { params });
+      const adAccountUsage = response.headers['x-business-use-case-usage'];
+      const usageData = JSON.parse(adAccountUsage);
 
-    // Dynamically adjust waiting based on usage
-    const maxUsage = Math.max(call_count, total_cputime, total_time);
-    console.log(`PopulateCampaigns.js: API USAGE ${maxUsage}%`)
+      const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
 
-    if (response.status == 400){
-      console.log(`PopulateCampaigns.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes.`);
-      await sleep((estimated_time_to_regain_access + 1) * 1000 * 60);
-      return fetchWithRateLimit(url, params, fb_adAccountID)
+      // Dynamically adjust waiting based on usage
+      const maxUsage = Math.max(call_count, total_cputime, total_time);
+      console.log(`PopulateCampaigns.js: API USAGE ${maxUsage}%`);
+
+      return response.data;
+  } catch (error) {
+      console.log(error.response.status)
+      if (error.response && (error.response.status === 400 || error.response.status === 500)) {
+          if (retryCount < maxRetries) {
+              const estimated_time_to_regain_access = JSON.parse(error.response?.headers['x-business-use-case-usage'])?.[account_id]?.[0]?.estimated_time_to_regain_access || 1;
+              const waitTime = (estimated_time_to_regain_access + 1) * 1000 * 60;
+              console.log(`PopulateCampaigns.js: Access is temporarily blocked. Waiting for ${estimated_time_to_regain_access} minutes. Retrying (${retryCount + 1}/${maxRetries})...`);
+              await sleep(waitTime);
+              return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+          } else {
+              console.log(`PopulateCampaigns.js: Failed after ${maxRetries} retries.`);
+              throw error;
+          }
+      } else {
+          console.log(`PopulateCampaigns.js: Encountered unexpected error.`, error);
+          throw error;
+      }
   }
-    return response.data;
 }
 
 
@@ -43,14 +50,14 @@ async function getCampaigns(fb_adAccountID, accessToken) {
   let params = {
     fields: fields,
     access_token: accessToken,
-    limit: 100
+    limit: 75
 };
 
   let i = 0;
   try {
       do {
         i++;
-        console.log('Fetching Campaigns ' + i);
+        console.log('Fetching Campaigns ' + i + ' => Retreived Campaigns: ' + allCampaigns.length);
           const response = await fetchWithRateLimit(url, params, fb_adAccountID);
           //console.log('API Response:', response); // Log the full response
           if (response && response.data ) {
@@ -119,46 +126,42 @@ async function getCampaigns(fb_adAccountID, accessToken) {
 
 
 async function populateCampaignsMain (postgres, omniBusinessId, fb_adAccountID, accessToken) {
-  
-try{
-  const facebookCampaignData = await getCampaigns(fb_adAccountID, accessToken);
+    
+  try {
+    const facebookCampaignData = await getCampaigns(fb_adAccountID, accessToken);
 
-  if (!facebookCampaignData || !facebookCampaignData.length===0) {
-     throw new Error('PopulateCampaigns.js: Invalid ad account data fetched.');
-  }
-
-  for (const campaign of facebookCampaignData) {
-    const campaignData = {
-      campaign_id: campaign.id,
-      status: campaign.status,
-      created_time: campaign.created_time,
-      daily_budget: campaign.daily_budget / 100 || '',
-      objective: campaign.objective,
-      start_time: campaign.start_time,
-      stop_time: campaign.stop_time,
-      buying_type: campaign.buying_type,
-      budget_remaining: campaign.budget_remaining / 100 || '',
-      bid_strategy: campaign.bid_strategy || '',
-      primary_attribution: campaign.primary_attribution,
-      source_campaign: campaign.source_campaign || '',
-      special_ad_categories: campaign.special_ad_categories,
-      updated_time: campaign.updated_time,
-      name: campaign.name, 
-      ad_account_id: fb_adAccountID, // Assuming this is the correct association
-      omni_business_id: omniBusinessId,
+    if (!facebookCampaignData || !facebookCampaignData.length===0) {
+      throw new Error('PopulateCampaigns.js: Invalid ad account data fetched.');
     }
 
-    // If order matters or you want to handle errors per campaign, await here
-    await populateCampaigns(campaignData, postgres).catch((error) => {
-      console.error(`PopulateCampaigns.js: Error populating campaign ${campaignData.campaign_id}: `, error);
-    });
+    for (const campaign of facebookCampaignData) {
+      const campaignData = {
+        campaign_id: campaign.id,
+        status: campaign.status,
+        created_time: campaign.created_time,
+        daily_budget: campaign.daily_budget / 100 || '',
+        objective: campaign.objective,
+        start_time: campaign.start_time,
+        stop_time: campaign.stop_time,
+        buying_type: campaign.buying_type,
+        budget_remaining: campaign.budget_remaining / 100 || '',
+        bid_strategy: campaign.bid_strategy || '',
+        primary_attribution: campaign.primary_attribution,
+        source_campaign: campaign.source_campaign || '',
+        special_ad_categories: campaign.special_ad_categories,
+        updated_time: campaign.updated_time,
+        name: campaign.name, 
+        ad_account_id: fb_adAccountID, // Assuming this is the correct association
+        omni_business_id: omniBusinessId,
+      }
+
+      await populateCampaigns(campaignData, postgres).catch((error) => {
+        console.error(`PopulateCampaigns.js: Error populating campaign ${campaignData.campaign_id}: `, error);
+      });
+    }
+  } catch (error) {
+    console.error('PopulateCampaigns.js: An error occurred in the main flow', error);
   }
-} catch (error) {
-  console.error('PopulateCampaigns.js: An error occurred in the main flow', error);
-} finally {
-   // Close the client connection at the end of all operations
-}
-  // Consider adding client.end() here to close the connection after all operations are done
 }
 
 module.exports= populateCampaignsMain;

@@ -6,20 +6,27 @@ const axios = require('axios');
 
  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
- async function fetchWithRateLimit(url, params, fb_adAccountID) {
+ async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, maxRetries = 3) {
+  try {
+      const response = await axios.get(url, { params });
 
-    const response = await axios.get(url, { params });
-    //console.log("response:",response.headers)
-    if (response.status == 400){
-
-        console.log("PopulateAdSets.js: API rate limit reached. Waiting for 10 minute")
-        await sleep(10 * 60 * 1000)
-        return fetchWithRateLimit(url, params, fb_adAccountID)
-    }
-     //console.log("response:",response.data)
-     return response.data;
-     
- }
+      return response.data;
+  } catch (error) {
+      if (error.response && (error.response.status == 400 || error.response.status == 500)) {
+          if (retryCount < maxRetries) {
+              console.log(`PopulateAdSets.js: API rate limit reached or server error occurred. Waiting for 1 minute. Retrying (${retryCount + 1}/${maxRetries})...`);
+              await sleep(1 * 60 * 1000);
+              return fetchWithRateLimit(url, params, fb_adAccountID, retryCount + 1, maxRetries);
+          } else {
+              console.log(`PopulateAdSets.js: Failed after ${maxRetries} retries.`);
+              throw error;
+          }
+      } else {
+          console.log(`PopulateAdSets.js: Encountered unexpected error.`, error);
+          throw error;
+      }
+  }
+}
  
 async function getAdsets(fb_adAccountID, accessToken) {
     const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/adsets`; // Correct endpoint for adsets
@@ -122,7 +129,7 @@ async function getAdsets(fb_adAccountID, accessToken) {
 
       ];
   
-      const result = await postgres.query(query, values);
+      const result = postgres.query(query, values);
       console.log(`PopulateAdSets.js: Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset successfully`);
       return result
     } catch (err) {

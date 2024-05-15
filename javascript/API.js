@@ -1,8 +1,10 @@
 const express = require('express');
 const { Client } = require('pg');
+const { S3Client } = require('@aws-sdk/client-s3');
+const { PutObjectCommand } = require('@aws-sdk/client-s3');
 const getGoogleRefreshToken = require('./endpoints/getGoogleRefreshToken');
 const getShopifyOrders = require('./endpoints/getShopifyOrders');
-const getShopifyProducts = require('./endpoints/getShopifyProducts');
+const getShopifyProductsFromShopify = require('./endpoints/getShopifyProductsFromShopify');
 const getShopifyOverview = require('./endpoints/getShopifyOverview');
 const saveShopifyStats = require('./endpoints/saveShopifyStats');
 const saveHistoricalShopifyStats = require('./endpoints/SaveHistoricalStats');
@@ -19,6 +21,13 @@ const getFacebookAccessToken = require('./endpoints/getFacebookRefreshToken');
 const getAds = require('./endpoints/databaseQueries/getAds');
 const getAdAccountsByBID = require('./endpoints/databaseQueries/getAdAccountsByBID');
 //const saveHistoricalShopifyStats = require('./endpoints/saveHistoricalShopifyStats');
+const getFileStructure = require('./endpoints/databaseQueries/getFileStructure');
+const uploadFile = require('./endpoints/uploadFile');
+const updateFileParent = require('./endpoints/databaseQueries/updateFileParent');
+const updateFileName = require('./endpoints/databaseQueries/updateFileName');
+const updateFileProductID = require('./endpoints/databaseQueries/updateFileProductID');
+const populateShopifyProductsMain = require('./endpoints/populateShopifyProducts');
+const downloadFileFromS3 = require('./endpoints/downloadFileFromS3');
 require('dotenv').config();
 
 const app = express();
@@ -71,6 +80,26 @@ postgres.connect()
   const accessToken = process.env.FB_ACCESS_TOKEN;
   const fb_businessID = '499682821437696';
   const fb_adAccountID = 'act_331027669725413';
+
+
+
+  // Initialize AWS S3 storage bucket
+  const s3 = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  });
+  const multer = require('multer');
+const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
+  const aws_s3_storage = multer.memoryStorage(); // Store files in memory
+  const upload = multer({ aws_s3_storage });
+  
+
+
+
+
 
 
 function saveShopifyStatsAtMidnight() {
@@ -126,9 +155,9 @@ app.get('/getShopifyOrders', async (req, res) => {
   }
 });
 
-app.get('/getShopifyProducts', async (req, res) => {
+app.get('/getShopifyProductsFromShopify', async (req, res) => {
   try {
-    const result = await getShopifyProducts(db, req);
+    const result = await getShopifyProductsFromShopify(db, req);
     res.send(result);
   } catch (error) {
     console.error(error);
@@ -263,10 +292,103 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+<<<<<<< HEAD
 // Webhook event handling endpoint
 app.post('/webhook', (req, res) => {
   const data = req.body;
   console.log("hello");
+=======
+app.post('/uploadFile', upload.single('file'), async (req, res) => {
+
+
+  try {
+    const result = await uploadFile(postgres, s3, PutObjectCommand, req, res);
+    res.status(200).send({ data: result });
+  } catch (err) {
+    console.log(err)
+    res.status(500).send(err);
+  }
+});
+
+
+
+app.get('/getFileStructure', async (req, res) => {
+  try {
+    const result = await getFileStructure(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/updateFileParent', async (req, res) => {
+  try {
+    const result = await updateFileParent(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
+});
+
+app.get('/updateFileName', async (req, res) => {
+  try {
+    const result = await updateFileName(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
+});
+
+app.get('/updateFileProductID', async (req, res) => {
+  try {
+    const result = await updateFileProductID(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
+});
+
+app.get('/populateShopifyProducts', async (req, res) => {
+  try {
+    const result = await populateShopifyProductsMain(db, postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
+});
+
+
+app.get('/getShopifyProducts', async (req, res) => {
+  try {
+    const result = await getShopifyProducts(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/downloadFileFromS3', async (req, res) => {
+  try {
+    const result = await downloadFileFromS3 (postgres, req, res);
+    res.send(result)
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+
+
+>>>>>>> 11e9e2202f3c4ff5934875df8d5c4e611728599a
 
   console.log(JSON.stringify(data, null, 2));
   insertFbWebhookData(JSON.stringify(data));
