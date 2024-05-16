@@ -93,6 +93,7 @@ postgres.connect()
   });
   const multer = require('multer');
 const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
+const populateFacebookInsightsMain = require('./endpoints/populateFacebookInsights');
   const aws_s3_storage = multer.memoryStorage(); // Store files in memory
   const upload = multer({ aws_s3_storage });
   
@@ -273,6 +274,8 @@ app.get('/getAdAccountsByBID', async (req, res) => {
     res.status(500).send({ error: 'An error occurred while querying db' }); 
   }
 });
+
+
 // Webhook verification endpoint
 app.get('/webhook', (req, res) => {
   console.log("hello");
@@ -306,6 +309,20 @@ app.post('/uploadFile', upload.single('file'), async (req, res) => {
     console.log(err)
     res.status(500).send(err);
   }
+});
+
+console.log(JSON.stringify(data, null, 2));
+insertFbWebhookData(JSON.stringify(data));
+// if (data.object === 'ad_account') {
+//     data.entry.forEach((entry) => {
+//         const adAccountId = entry.id;
+//         entry.changes.forEach((change) => {
+//             handleAdAccountChange(adAccountId, change);
+//         });
+//     });
+// }
+
+res.status(200).send('EVENT_RECEIVED');
 });
 
 
@@ -384,22 +401,18 @@ app.get('/downloadFileFromS3', async (req, res) => {
 });
 
 
-
-
-
-  console.log(JSON.stringify(data, null, 2));
-  insertFbWebhookData(JSON.stringify(data));
-  // if (data.object === 'ad_account') {
-  //     data.entry.forEach((entry) => {
-  //         const adAccountId = entry.id;
-  //         entry.changes.forEach((change) => {
-  //             handleAdAccountChange(adAccountId, change);
-  //         });
-  //     });
-  // }
-
-  res.status(200).send('EVENT_RECEIVED');
+app.get('/populateFacebookInsights', async (req, res) => {
+  try {
+    const result = await populateFacebookInsightsMain(db, postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
 });
+
+
+
 
 
 // Start the server
