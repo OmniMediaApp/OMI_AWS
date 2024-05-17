@@ -47,7 +47,7 @@ async function getShopifyOverview(db, req, res, postgres) {
         totalOrders = totalOrders + 1;
         for (let j = 0; j < response.data.orders[i].line_items.length; j++) {
           orders.push({
-            productID: response.data.orders[i].line_items[j].product_id,
+            variantID: response.data.orders[i].line_items[j].variant_id,
             quantity: response.data.orders[i].line_items[j].quantity,
             orderNumber: response.data.orders[i].order_number,
             totalPrice: response.data.orders[i].line_items[j].price_set.presentment_money.amount * 1,
@@ -87,31 +87,24 @@ async function getShopifyOverview(db, req, res, postgres) {
 
 
 
-  async function getProductCost(shopifyDomain, shopifyAccessToken, inventoryIDs) {
-    // let productCosts = []
-    // const COGSRef = db.collection('ShopifyProductCOGS').doc(shopifyDomain);
-    // const doc = await COGSRef.get();
-    // if (!doc.exists) {
-    //   console.log('No such document!');
-    // } else {
-    //   productCosts = doc.data().data;
-    // }
-    // return productCosts
-
-    const omniBusinessID = 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd'
-
+  async function getProductCost() {
       try {
-          const result = await postgres.query(`SELECT * FROM public.shopify_products WHERE omni_business_id = '${omniBusinessID}'`);
-          console.log('Query result:', result.rows);
-          return result.rows;
-      } catch (error) {
-          console.error('Error executing query:', error);
-      }
-  
-  
-  executeQuery();
-  
+        const omniBusinessID = 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd'
+        const result = await postgres.query(`
+        SELECT 
+          id AS variant_id, 
+          cogs 
+        FROM 
+          public.shopify_product_variants
+        WHERE 
+          omni_business_id = '${omniBusinessID}'
+        `);
+        //console.log('Query result:', result.rows);
+        return result.rows;
 
+      } catch (error) {
+        console.error('getShopifyOverview.js: ERROR getting product costs', error);
+      }
   }
 
 
@@ -196,19 +189,19 @@ async function getShopifyOverview(db, req, res, postgres) {
       let foundMatch = false; // Flag to track if a match is found for the current order
   
       for (let j = 0; j < productCosts.length; j++) {
-          if (orders[i].productID == productCosts[j].product_id) {
+          if (orders[i].variantID == productCosts[j].variant_id) {
               foundMatch = true; // Set the flag to true if a match is found
   
               allData.push({
-                  productID: orders[i].productID,
-                  quantity: orders[i].quantity,
-                  totalPrice: orders[i].totalPrice,
-                  orderNumber: orders[i].orderNumber,
-                  productName: productCosts[j].product_name,
-                  variantTitle: productCosts[j].variant_title,
-                  variantID: productCosts[j].variant_id,
-                  inventoryID: productCosts[j].inventory_id,
-                  productCost: productCosts[j].product_cost,
+                variantID: orders[i].variantID,
+                quantity: orders[i].quantity,
+                totalPrice: orders[i].totalPrice,
+                orderNumber: orders[i].orderNumber,
+                productName: productCosts[j].product_name,
+                variantTitle: productCosts[j].variant_title,
+                variantID: productCosts[j].variant_id,
+                inventoryID: productCosts[j].inventory_id,
+                productCost: productCosts[j].cogs.parseFloat(),
               });
   
               break; // Exit the inner loop once a match is found
