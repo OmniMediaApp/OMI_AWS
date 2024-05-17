@@ -97,22 +97,18 @@ async function getMedia(fb_adAccountID, accessToken) {
           
           if (response && response.data) {
               allAdVideos.push(...response.data);
-              nextPageUrl = response.paging?.next || null;
-              
-              // Update the url for the next request
-              if (nextPageUrl) {
-                  url = nextPageUrl;
-              }
+      
           } else {
               console.error('No adVideo data in response:', response);
               nextPageUrl = null;
           }
-      } while (nextPageUrl);
+          url =  response.paging?.next;
+          params = {};
+      } while (url);
   } catch (error) {
       console.error('Error fetching videos:', error.message);
       throw error; // Rethrow the error to be handled by the calling function
   }
-  
   return allAdVideos;
 }
 

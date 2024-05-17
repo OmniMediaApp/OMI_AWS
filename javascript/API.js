@@ -99,10 +99,6 @@ const populateFacebookInsightsMain = require('./endpoints/populateFacebookInsigh
   
 
 
-
-
-
-
 function saveShopifyStatsAtMidnight() {
   console.log('Running at midnight!');
   saveShopifyStats(db)
@@ -400,10 +396,13 @@ app.get('/downloadFileFromS3', async (req, res) => {
   }
 });
 
-
-app.get('/populateFacebookInsights', async (req, res) => {
+app.post('/populateFacebookInsights', async (req, res) => {
   try {
-    const result = await populateFacebookInsightsMain(db, postgres, req, res);
+    const omniBusinessId = req.body.omniBusinessId;
+    const fb_businessID = req.body.fb_businessID;
+    const fb_adAccountID = req.body.fb_adAccountID;
+    const accessToken = req.body.accessToken;
+    const result = await populateFacebookInsightsMain(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
     res.send(result);
   } catch (error) {
     console.error(error);
