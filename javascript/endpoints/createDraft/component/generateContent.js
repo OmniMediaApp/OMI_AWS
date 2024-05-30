@@ -4,17 +4,26 @@ async function generateContent(productName, productDescription) {
     try {
         const openAIAccessKey = process.env.OPENAI_API
 
-        console.log(openAIAccessKey)
-
         const prompt = `Given a product name "${productName}" and description "${productDescription}", generate the following. Just include your response, no number or explanation:
-        1. An optimized product name (MAXIMUM OF 20 characters, no exceptions).
-        2. Facebook Ad Text (90-120 characters).
-        3. Ad Headline (5-30 characters).
-        4. Ad Description (up to 60 characters).
-        5. Recommended ad location. United States is always a good answer unless the product could be localized further. .
-        6. Target age range (in the format [minAge, maxAge]). Minimum 18.
-        7. Target gender (men, women, or all).
-        8. Top 6 Facebook ad interests (as a JavaScript array). Answer in the form of a JavaScript array, for example, ["Example", "Example"]. 
+        1. Facebook Ad Text 1 (90-120 characters).
+        2. Facebook Ad Text 2 (90-120 characters).
+        3. Facebook Ad Text 3 (90-120 characters).
+        4. Facebook Ad Text 4 (90-120 characters).
+        5. Facebook Ad Text 5 (90-120 characters).
+        6. Ad Headline 1 (5-30 characters).
+        7. Ad Headline 2 (5-30 characters).
+        8. Ad Headline 3 (5-30 characters).
+        9. Ad Headline 4 (5-30 characters).
+        10. Ad Headline 5 (5-30 characters).
+        11. Ad Description 1 (up to 60 characters).
+        12. Ad Description 2 (up to 60 characters).
+        13. Ad Description 3 (up to 60 characters).
+        14. Ad Description 4 (up to 60 characters).
+        15. Ad Description 5 (up to 60 characters).
+        16. Recommended ad location. United States is always a good answer unless the product could be localized further. .
+        17. Target age range (in the format [minAge, maxAge]). Minimum 18.
+        18. Target gender (men, women, or all).
+        19. Top 6 Facebook ad interests (as a JavaScript array). Answer in the form of a JavaScript array, for example, ["Example", "Example"]. 
         Include the brackets and the quotes Here are all the possible interests to target: 
         
         Advertising, Agriculture, Architecture, Aviation, Banking, Investment banking, Online banking, Retail banking, 
@@ -60,7 +69,7 @@ async function generateContent(productName, productDescription) {
             'https://api.openai.com/v1/chat/completions',
             {
                 //model: 'gpt-4',
-                model: 'gpt-4-turbo-preview',
+                model: 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.1,
             },

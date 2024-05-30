@@ -60,7 +60,7 @@ async function populateAll (postgres, omniBusinessId, fb_businessID, fb_adAccoun
 
   try {
     await populateSelectedAccount(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-    // await populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken);  
+    await populateDataDetails(postgres, omniBusinessId, fb_adAccountID, accessToken);  
     
     return "success"
 

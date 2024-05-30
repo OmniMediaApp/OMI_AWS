@@ -1,10 +1,9 @@
 async function saveDraft(
     db, 
-    optimizedProductName, 
     businessID, 
-    fb_PrimaryText, 
-    fb_HeadlineText, 
-    fb_DescriptionText, 
+    fb_PrimaryTextOptions, 
+    fb_HeadlineTextOptions, 
+    fb_DescriptionTextOptions, 
     fb_LocationSuggestions, 
     fb_Age, 
     fb_Gender, 
@@ -19,14 +18,15 @@ async function saveDraft(
     facebookAccessToken
     ) {
   
+
+        console.log(fb_Age)
   
     const data = {
-      optimizedProductName: optimizedProductName.replace(/^"|"$/g, ''),
       platform: 'Facebook',
       timestamp: new Date(),
-      fb_PrimaryText: fb_PrimaryText.replace(/^"|"$/g, ''),
-      fb_HeadlineText: fb_HeadlineText.replace(/^"|"$/g, ''),
-      fb_DescriptionText: fb_DescriptionText.replace(/^"|"$/g, ''),
+      fb_PrimaryTextOptions: fb_PrimaryTextOptions,
+      fb_HeadlineTextOptions: fb_HeadlineTextOptions,
+      fb_DescriptionTextOptions: fb_DescriptionTextOptions,
       fb_LocationSelected: fb_LocationSuggestions[0],
       fb_LocationSuggestions: fb_LocationSuggestions,
       fb_Age: JSON.parse(fb_Age),
@@ -46,7 +46,7 @@ async function saveDraft(
       userID: uid,
       businessID: businessID,
       media: productPhotos,
-      productUrl: productUrl.replace(/^"|"$/g, ''),
+      productUrl: productUrl,
       complete_productPhotos: true,
       complete_targeting: true,
       complete_location: true,
@@ -62,15 +62,15 @@ async function saveDraft(
     };
     
   const res = await db.collection('drafts').add(data);
-  const productId = await createProductInFirebase(db, res.id, productUrl, optimizedProductName, uid, productPhotos)
-  await addProductIdToDraft (db, res.id, productId)
+  //const productId = await createProductInFirebase(db, res.id, productUrl, optimizedProductName, uid, productPhotos)
+  //await addProductIdToDraft (db, res.id, productId)
   
   return res.id;
   }
   
   
   async function createProductInFirebase(db, draftId, productUrl, optimizedProductName, uid, productPhotos) {
-      const sanitizedUrl = productUrl.replace(/^"|"$/g, '');
+      const sanitizedUrl = productUrl;
       const sanitizedProductName = optimizedProductName.replace(/^"|"$/g, '');
   
       // Check if a product with the same URL already exists

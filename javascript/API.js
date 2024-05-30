@@ -94,6 +94,13 @@ postgres.connect()
   const multer = require('multer');
 const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
 const populateFacebookInsightsMain = require('./endpoints/populateFacebookInsights');
+const insertNewFolder = require('./endpoints/databaseQueries/insertNewFolder');
+const updateFileFavorite = require('./endpoints/databaseQueries/updateFileFavorite');
+const getShopifyProduct = require('./endpoints/databaseQueries/getShopifyProduct');
+const getFilesByProductID = require('./endpoints/databaseQueries/getFilesByProductID');
+const generateMoreTextOptions = require('./endpoints/generateMoreTextOptions');
+const getPixelsByBID = require('./endpoints/databaseQueries/getPixelsByBID');
+const createFacebookAd = require('./endpoints/createFacebookAd');
   const aws_s3_storage = multer.memoryStorage(); // Store files in memory
   const upload = multer({ aws_s3_storage });
   
@@ -184,20 +191,19 @@ app.get('/getShopifyOverview', async (req, res) => {
 
 app.get('/createDraft', async (req, res) => {
   try{
-  const result = await createDraft(db, req, res);
-  res.send(result);
+    const result = await createDraft(postgres, db, req, res);
+    res.send(result);
   } catch (error){
     console.error(error);
     res.status(500).send({error: 'An error occurred while creating draft.'})
   }
 
 }); 
-854522159611705
 
-app.get('/createFacebookAd', async (req, res) => {
+app.post('/createFacebookAd', async (req, res) => {
   try{
-  const result=(await createFacebookAd(db, req, res));
-  res.send(result);
+    const result = await createFacebookAd(db, req, res);
+    res.send(result);
   } catch (error){
     console.error(error);
     res.status(500).send({error: 'An error occured while creating facebook ad'})
@@ -295,18 +301,6 @@ app.get('/webhook', (req, res) => {
 app.post('/webhook', (req, res) => {
   const data = req.body;
   console.log("hello");
-app.post('/uploadFile', upload.single('file'), async (req, res) => {
-
-
-  try {
-    const result = await uploadFile(postgres, s3, PutObjectCommand, req, res);
-    res.status(200).send({ data: result });
-  } catch (err) {
-    console.log(err)
-    res.status(500).send(err);
-  }
-});
-
 console.log(JSON.stringify(data, null, 2));
 insertFbWebhookData(data, postgres);
 // if (data.object === 'ad_account') {
@@ -321,6 +315,17 @@ insertFbWebhookData(data, postgres);
 res.status(200).send('EVENT_RECEIVED');
 });
 
+
+
+app.post('/uploadFile', upload.single('file'), async (req, res) => {
+  try {
+    const result = await uploadFile(postgres, s3, PutObjectCommand, req, res);
+    res.status(200).send({ data: result });
+  } catch (err) {
+    console.log(err)
+    res.status(500).send(err);
+  }
+});
 
 
 app.get('/getFileStructure', async (req, res) => {
@@ -364,7 +369,7 @@ app.get('/updateFileProductID', async (req, res) => {
   }
 });
 
-app.get('/populateShopifyProducts', async (req, res) => {
+app.post('/populateShopifyProducts', async (req, res) => {
   try {
     const result = await populateShopifyProductsMain(db, postgres, req, res);
     res.send(result);
@@ -409,6 +414,84 @@ app.post('/populateFacebookInsights', async (req, res) => {
     res.status(500).send({ error: 'An error occurred while updating db' }); 
   }
 });
+
+app.post('/insertNewFolder', async (req, res) => {
+  try {
+    const result = await insertNewFolder (postgres, req, res);
+    res.send(result)
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/updateFileFavorite', async (req, res) => {
+  try {
+    const result = await updateFileFavorite(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
+  }
+});
+
+
+
+app.get('/getShopifyProduct', async (req, res) => {
+  try {
+    const product_id = req.query.product_id;
+    const result = await getShopifyProduct(postgres, product_id);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/getFilesByProductID', async (req, res) => {
+  try {
+    const result = await getFilesByProductID(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+app.post('/generateMoreTextOptions', async (req, res) => {
+  try {
+    const options = req.body.options;
+    const type = req.body.type;
+    const draftID = req.body.draftID;
+    const result = await generateMoreTextOptions(db, options, type, draftID);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while generating more text options.' });
+  }
+});
+
+
+app.get('/getPixelsByBID', async (req, res) => {
+  try {
+    const result = await getPixelsByBID(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+
+
+
+
+
+
+
 
 
 

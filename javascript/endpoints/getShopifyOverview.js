@@ -189,7 +189,7 @@ async function getShopifyOverview(db, req, res, postgres) {
       let foundMatch = false; // Flag to track if a match is found for the current order
   
       for (let j = 0; j < productCosts.length; j++) {
-          if (orders[i].variantID == productCosts[j].variant_id) {
+          if (orders[i].variantID == productCosts[j].variant_id * 1) {
               foundMatch = true; // Set the flag to true if a match is found
   
               allData.push({
@@ -201,7 +201,7 @@ async function getShopifyOverview(db, req, res, postgres) {
                 variantTitle: productCosts[j].variant_title,
                 variantID: productCosts[j].variant_id,
                 inventoryID: productCosts[j].inventory_id,
-                productCost: productCosts[j].cogs.parseFloat(),
+                productCost: productCosts[j].cogs * orders[i].quantity * 1,
               });
   
               break; // Exit the inner loop once a match is found
@@ -210,7 +210,7 @@ async function getShopifyOverview(db, req, res, postgres) {
   
       if (!foundMatch) {
           // Handle case where no match is found for the current order
-          console.log('No match found for order:', orders[i].orderNumber);
+          console.log('No match found for order:', orders[i].variantID);
       }
   }
 

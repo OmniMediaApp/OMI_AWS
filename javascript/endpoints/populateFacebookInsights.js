@@ -94,7 +94,7 @@ async function populateFacebookInsights(postgres, adInsight, omni_business_id, a
          value_onsite_web_purchase, value_offsite_conversion_fb_pixel_add_to_cart, value_omni_view_content, value_omni_initiated_checkout,
          value_onsite_web_app_view_content, value_onsite_web_view_content, value_add_to_cart, date, omni_business_id)
     VALUES 
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58 )
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59)
     ON CONFLICT (ad_id) DO UPDATE SET 
         adset_id = EXCLUDED.adset_id,
         campaign_id = EXCLUDED.campaign_id,
@@ -186,24 +186,25 @@ async function populateFacebookInsights(postgres, adInsight, omni_business_id, a
             adInsight.actions.find(a => a.action_type === "initiate_checkout")?.value || 0,
             adInsight.actions.find(a => a.action_type === "link_click")?.value || 0,
             adInsight.actions.find(a => a.action_type === "omni_purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_app_purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_app_add_to_cart")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_add_to_cart")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "omni_purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "omni_add_to_cart")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "initiate_checkout")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "offsite_conversion.fb_pixel_initiate_checkout")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "view_content")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "offsite_conversion.fb_pixel_view_content")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_purchase")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "offsite_conversion.fb_pixel_add_to_cart")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "omni_view_content")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "omni_initiated_checkout")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_app_view_content")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "onsite_web_view_content")?.value || 0,
-            adInsight.action_values?.find(v => v.action_type === "add_to_cart")?.value || 0,
+            // Values for monetary actions
+            adInsight.action_values.find(v => v.action_type === "onsite_web_app_purchase")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "onsite_web_app_add_to_cart")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "onsite_web_add_to_cart")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "omni_purchase")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "omni_add_to_cart")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "initiate_checkout")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "offsite_conversion.fb_pixel_purchase")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "offsite_conversion.fb_pixel_initiate_checkout")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "offsite_conversion.fb_pixel_view_content")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "view_content")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "purchase")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "onsite_web_purchase")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "offsite_conversion.fb_pixel_add_to_cart")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "omni_view_content")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "omni_initiated_checkout")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "onsite_web_app_view_content")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "onsite_web_view_content")?.value || 0,
+            adInsight.action_values.find(v => v.action_type === "add_to_cart")?.value || 0,
             adInsight.date_start,
             omni_business_id
         ]);

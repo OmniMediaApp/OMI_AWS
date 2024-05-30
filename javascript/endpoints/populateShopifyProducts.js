@@ -15,12 +15,12 @@ async function populateShopifyProductsMain (db, postgres, req, res) {
 
 
         for (let i = 0; i < products.length; i++) {
-            await populateShopifyProducts(postgres, products[i].node, omni_business_id);
-            for (let j = 0; j < products[i].node.variants.edges.length; j++) {
-                await populateShopifyProductVariants(postgres, products[i].node.variants.edges[j].node, (products[i].node.id).split('/').pop(), omni_business_id);
+            await populateShopifyProducts(postgres, products[i], omni_business_id);
+            for (let j = 0; j < products[i].variants.edges.length; j++) {
+                await populateShopifyProductVariants(postgres, products[i].variants.edges[j].node, (products[i].id).split('/').pop(), omni_business_id);
             }
-            for (let k = 0; k < products[i].node.images.nodes.length; k++) {
-                await populateShopifyProductImages(postgres, products[i].node.images.nodes[k], (products[i].node.id).split('/').pop(), omni_business_id);
+            for (let k = 0; k < products[i].images.nodes.length; k++) {
+                await populateShopifyProductImages(postgres, products[i].images.nodes[k], (products[i].id).split('/').pop(), omni_business_id);
             }
         }
     } catch (error) {
@@ -140,129 +140,129 @@ async function populateShopifyProductImages (postgres, image, productID, omni_bu
 
 
 
-async function getShopifyProducts (db, postgres, req, res) {
+
+async function getShopifyProducts(db, postgres, req, res) {
   try {
+    const today = new Date();
+    const timeZoneOffset = -5; // New York timezone offset is UTC-5
+    const utcTimestamp = today.getTime() + (today.getTimezoneOffset() * 60000);
+    const adjustedTimestamp = utcTimestamp + (timeZoneOffset * 3600000);
+    const adjustedDate = new Date(adjustedTimestamp);
 
-  const today = new Date();
-  const timeZoneOffset = -5; // New York timezone offset is UTC-5
-  const utcTimestamp = today.getTime() + (today.getTimezoneOffset() * 60000);
-  const adjustedTimestamp = utcTimestamp + (timeZoneOffset * 3600000);
-  const adjustedDate = new Date(adjustedTimestamp);
+    const dateStart = adjustedDate.toISOString().split('T')[0];
+    const dateEnd = adjustedDate.toISOString().split('T')[0];
 
-  const dateStart = adjustedDate.toISOString().split('T')[0];
-  const dateEnd = adjustedDate.toISOString().split('T')[0];
-
-  const uid = req.query.uid;
-  const storeData = await getStoreData(db, uid);
-  const shopifyDomain = storeData.shopifyDomain;
-  const accessToken = storeData.shopifyAdminAccessToken
-
+    const uid = req.query.uid;
+    const storeData = await getStoreData(db, uid);
+    const shopifyDomain = storeData.shopifyDomain;
+    const accessToken = storeData.shopifyAdminAccessToken;
 
     let products = [];
-    let url = `https://${shopifyDomain}/admin/api/2024-01/graphql.json`;
+    let hasNextPage = true;
+    let endCursor = null;
 
+    let i = 0;
 
-    while (url) {
-      const config = {
-        method: 'post',
-        url: url,
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        },
-        data: {
-          query: `
-          {
-            products(first: 250) {
-              edges {
-                node {
-                  id
-                  title
-                  variants(first: 2) {
-                    edges {
-                      node {
+    while (hasNextPage) {
+      i++;
+      console.log('Fetching page', i);
+      const query = `
+        {
+          products(first: 25${endCursor ? `, after: "${endCursor}"` : ''}) {
+            edges {
+              node {
+                id
+                title
+                variants(first: 100) {
+                  edges {
+                    node {
+                      id
+                      title
+                      inventoryQuantity
+                      displayName
+                      inventoryItem {
                         id
-                        title
-                        inventoryQuantity
-                        displayName
-                        inventoryItem {
-                          id
-                          unitCost {
-                            amount
-                          }
-                          locationsCount
-                          inventoryLevels(first: 10) {
-                            edges {
-                              node {
+                        unitCost {
+                          amount
+                        }
+                        locationsCount
+                        inventoryLevels(first: 10) {
+                          edges {
+                            node {
+                              id
+                              available
+                              location {
                                 id
-                                available
-                                location {
-                                  id
-                                }
                               }
                             }
                           }
                         }
-                        price
                       }
+                      price
                     }
                   }
-                  createdAt
-                  status
-                  tags
-                  onlineStoreUrl
-                  onlineStorePreviewUrl
-                  totalInventory
-                  updatedAt
-                  images(first: 10) {
-                    nodes {
-                      src
-                    }
-                  }
-                  priceRange {
-                    maxVariantPrice {
-                      amount
-                    }
-                    minVariantPrice {
-                      amount
-                    }
-                  }
-                  descriptionHtml
-                  description
                 }
+                createdAt
+                status
+                tags
+                onlineStoreUrl
+                onlineStorePreviewUrl
+                totalInventory
+                updatedAt
+                images(first: 10) {
+                  nodes {
+                    src
+                  }
+                }
+                priceRange {
+                  maxVariantPrice {
+                    amount
+                  }
+                  minVariantPrice {
+                    amount
+                  }
+                }
+                descriptionHtml
+                description
               }
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
           }
-          
-          
-          
-          
-          `
         }
+      `;
+
+      const config = {
+        method: 'post',
+        url: `https://${shopifyDomain}/admin/api/2024-01/graphql.json`,
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json'
+        },
+        data: { query }
       };
 
-      console.log(config.url);
       const response = await axios(config);
-      console.log(response.data.errors)
-      console.log(response.data.extensions)
-      products = response?.data?.data?.products?.edges
+      const data = response.data.data;
 
-      // Check if there is a next page
-      url = getNextPageLink(response.headers.link);
+      if (data && data.products) {
+        products = products.concat(data.products.edges.map(edge => edge.node));
+        hasNextPage = data.products.pageInfo.hasNextPage;
+        endCursor = data.products.pageInfo.endCursor;
+      } else {
+        hasNextPage = false;
+      }
     }
 
-    return products;
+    return (products);
   } catch (error) {
-    // Handle errors
     console.error('Error fetching Shopify products:', error);
     throw error; // Re-throw the error to propagate it
   }
 }
 
-function getNextPageLink(linkHeader) {
-  // Implement your logic to extract the next page link from the linkHeader
-  return null; // For simplicity, returning null here. You should implement this logic.
-}
 
 
 

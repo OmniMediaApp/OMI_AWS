@@ -222,7 +222,7 @@ async function getMedia(fb_adAccountID, accessToken) {
         `;
     
       const values = [
-        fbMediaPrivacyData.video_id, fbMediaPrivacyData.allow, fbMediaPrivacyData.deny,
+        fbMediaPrivacyData.video_id, fbMediaPrivacyData?.allow || null, fbMediaPrivacyData.deny,
         fbMediaPrivacyData.description, fbMediaPrivacyData.friends, fbMediaPrivacyData.networks, fbMediaPrivacyData.value
       ];
   
@@ -300,7 +300,7 @@ async function getMedia(fb_adAccountID, accessToken) {
   
       const fbMediaPrivacyData = {
         video_id: advideo.id,
-        allow: advideo.privacy.allow,
+        allow: advideo.privacy?.allow || null,
         deny: advideo.privacy.deny,
         description: advideo.privacy.description,
         friends: advideo.privacy.friends,

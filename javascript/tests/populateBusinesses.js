@@ -24,7 +24,7 @@ const axios = require('axios');
 
 async function getBusinesses(fb_businessID, accessToken) {
     const apiUrl = `https://graph.facebook.com/v19.0/${fb_businessID}`;
-    const fields = `verification_status,created_by,created_time,id,name,adspixels{id,last_fired_time,name,owner_ad_account,owner_business}`;
+    const fields = `verification_status,created_by,created_time,id,name,adspixels{id,last_fired_time,name,owner_business}`;
     try {
         const response = await axios.get(apiUrl, {
             params: {
@@ -32,6 +32,8 @@ async function getBusinesses(fb_businessID, accessToken) {
                 access_token: accessToken
             }
         });
+        console.log(apiUrl)
+        console.log(response.data.adspixels)
         return response.data;
     } catch (error) {
         console.error('Error fetching data:', error.response);
@@ -133,7 +135,7 @@ async function populateBusinessesMain(postgres, omniBusinessId, fb_businessID , 
                 name: pixel.name,
                 last_fired_time: pixel.last_fired_time,
                 business_name: pixel.owner_business.name,
-                owner_ad_account: pixel.owner_ad_account.account_id,
+                owner_ad_account: pixel?.owner_ad_account?.account_id || null,
                 owner_business: pixel.owner_business.id,
                 creation_time: pixel.creation_time,
                 enable_automatic_matching: pixel.enable_automatic_matching,
