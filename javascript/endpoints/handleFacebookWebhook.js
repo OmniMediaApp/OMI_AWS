@@ -1,10 +1,10 @@
 
 
 
-async function insertFbWebhookData(webhookData,postgrs) {
+async function insertFbWebhookData(webhookData,postgres) {
     try {
       
-  
+      console.log(webhookData)
       const entry = webhookData.entry[0];
       const entryId = entry.id;
       const timestamp = entry.time;
@@ -21,7 +21,7 @@ async function insertFbWebhookData(webhookData,postgrs) {
           VALUES ($1, $2, $3, $4)
           RETURNING id;
         `;
-        const entryRes = await [postgrs].query(insertEntryQuery, [entryId, objectType, changes, timestamp]);
+        const entryRes = await [postgres].query(insertEntryQuery, [entryId, objectType, changes, timestamp]);
         const dbEntryId = entryRes.rows[0].id;
   
         const changeValue = change.value;
@@ -35,14 +35,14 @@ async function insertFbWebhookData(webhookData,postgrs) {
           INSERT INTO fb_ad_issues (entry_id, fb_id, level, error_code, error_summary, error_message, field)
           VALUES ($1, $2, $3, $4, $5, $6, $7);
         `;
-        await postgrs.query(insertChangeQuery, [dbEntryId, fbId, level, errorCode, errorSummary, errorMessage, field]);
+        await postgres.query(insertChangeQuery, [dbEntryId, fbId, level, errorCode, errorSummary, errorMessage, field]);
       } else if (field === 'in_process_ad_objects') {
         const insertEntryQuery = `
           INSERT INTO fb_webhook_entries_in_process (entry_id, object_type, changes, timestamp)
           VALUES ($1, $2, $3, $4)
           RETURNING id;
         `;
-        const entryRes = await postgrs.query(insertEntryQuery, [entryId, objectType, changes, timestamp]);
+        const entryRes = await postgres.query(insertEntryQuery, [entryId, objectType, changes, timestamp]);
         const dbEntryId = entryRes.rows[0].id;
   
         const changeValue = change.value;
@@ -54,14 +54,14 @@ async function insertFbWebhookData(webhookData,postgrs) {
           INSERT INTO fb_ad_changes (entry_id, fb_id, level, status_name, field)
           VALUES ($1, $2, $3, $4, $5);
         `;
-        await postgrs.query(insertChangeQuery, [dbEntryId, fbId, level, statusName, field]);
+        await postgres.query(insertChangeQuery, [dbEntryId, fbId, level, statusName, field]);
         console.log('Data inserted successfully');
       }
   
-      await postgrs.query('COMMIT');
+      await postgres.query('COMMIT');
       console.log('Data inserted successfully');
     } catch (error) {
-      await postgrs.query('ROLLBACK');
+      //await postgres.query('ROLLBACK');
       console.error('Error inserting data:', error);
     } finally {
       

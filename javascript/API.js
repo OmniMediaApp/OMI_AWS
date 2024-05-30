@@ -282,7 +282,7 @@ app.get('/webhook', (req, res) => {
    
 
   if (mode && token) {
-      if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      if (mode === 'subscribe' && token === "OmniMedia") {
           console.log('WEBHOOK_VERIFIED');
           res.status(200).send(challenge);
       } else {
@@ -308,7 +308,7 @@ app.post('/uploadFile', upload.single('file'), async (req, res) => {
 });
 
 console.log(JSON.stringify(data, null, 2));
-insertFbWebhookData(JSON.stringify(data));
+insertFbWebhookData(data, postgres);
 // if (data.object === 'ad_account') {
 //     data.entry.forEach((entry) => {
 //         const adAccountId = entry.id;

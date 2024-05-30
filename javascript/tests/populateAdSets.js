@@ -112,8 +112,6 @@ async function getAdsets(fb_adAccountID, accessToken) {
             targeting_location_types = EXCLUDED.targeting_location_types,
             targeting_brand_safety_content_filter_levels = EXCLUDED.targeting_brand_safety_content_filter_levels,
             targeting_automation = EXCLUDED.targeting_automation;
-        
-          
         `;
 
       const values = [
@@ -140,7 +138,25 @@ async function getAdsets(fb_adAccountID, accessToken) {
     }
   };
 
-
+// async function populate_fbadsets_insights(facebookAdsetData, postgres) {
+//     try {
+//         const query = `
+//         INSERT INTO fb_adset_insights
+//         (adset_id, campaign_id, account_id)
+//         VALUES
+//         ($1, $2, $3)
+//         ON CONFLICT (adset_id) DO NOTHING;
+//         `;
+//         const values = [ facebookAdsetData.adset_id, facebookAdsetData.campaign_id, facebookAdsetData.account_id];
+//         const result = await postgres.query(query, values);
+//         console.log(`PopulateAdSets.js: Inserted or updated adset: ${facebookAdsetData.adset_id} into fb_adset_insights successfully`);
+//     } catch (err) {
+//         console.error('PopulateAdSets.js: Insert or update error:', err);
+//     } finally {
+//         // Close the client connection
+//         //client.end();
+//     }
+// };
 
   async function populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres) {
     try {
@@ -258,6 +274,9 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
       await populate_fbadsets(adsetData, postgres).catch((error) => {
         console.error(`PopulateAdSets.js: Error populating adset ${adset.id}: `, error);
       });
+      // await populate_fbadsets_insights(adsetData, postgres).catch((error) => {
+      //   console.error(`PopulateAdSets.js: Error populating adset ${adset.id}: `, error);
+      // });
     
     if (adset.targeting_optimization_types) {
       for (const type of adset.targeting_optimization_types) {
@@ -268,9 +287,9 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
         };
         
         // Await the function and handle errors
-        await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres).catch((error) => {
-          console.error(`PopulateAdSets.js: Error populating targeting optimization types for adset ${adset.id}: `, error);
-        });
+        // await populate_fb_adset_targeting_optimization_types(fbAdsetTargetingOptimizationTypesData, postgres).catch((error) => {
+        //   console.error(`PopulateAdSets.js: Error populating targeting optimization types for adset ${adset.id}: `, error);
+        // });
       }
     }
 
@@ -286,9 +305,9 @@ async function populateAdSetsMain (postgres, omniBusinessId, fb_adAccountID, acc
             };
 
             // Await the function and handle errors
-            await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData, postgres).catch((error) => {
-              console.error(`PopulateAdSets.js: Error populating flexible spec for adset ${adset.id}: `, error);
-            });
+            // await populate_fb_adset_flexible_spec(fbAdsetFlexibleSpecData, postgres).catch((error) => {
+            //   console.error(`PopulateAdSets.js: Error populating flexible spec for adset ${adset.id}: `, error);
+            // });
           }
         }
       }

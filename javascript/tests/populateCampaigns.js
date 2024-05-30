@@ -43,7 +43,7 @@ async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, m
 
 async function getCampaigns(fb_adAccountID, accessToken) {
   const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/campaigns`;
-  const fields = 'name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time';
+  const fields = 'name,adlabels,created_time,daily_budget,id,lifetime_budget,objective,promoted_object,spend_cap,start_time,status,stop_time,buying_type,budget_remaining,account_id,bid_strategy,primary_attribution,source_campaign,special_ad_categories,updated_time,smart_promotion_type';
   
   let allCampaigns = [];
   let url = apiUrl;
@@ -83,9 +83,9 @@ async function getCampaigns(fb_adAccountID, accessToken) {
     const query = `
       INSERT INTO fb_campaign (
         campaign_id, status, created_time, daily_budget, objective, start_time, stop_time, buying_type, budget_remaining, 
-        bid_strategy, primary_attribution, source_campaign, special_ad_categories, updated_time, name, account_id, omni_business_id
+        bid_strategy, primary_attribution, source_campaign, special_ad_categories, updated_time, name, account_id, omni_business_id, smart_promotion_type
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
       ) ON CONFLICT (campaign_id) DO UPDATE SET 
         status = EXCLUDED.status,
         created_time = EXCLUDED.created_time,
@@ -103,6 +103,7 @@ async function getCampaigns(fb_adAccountID, accessToken) {
         name = EXCLUDED.name,
         account_id = EXCLUDED.account_id,
         omni_business_id = EXCLUDED.omni_business_id;
+
     `; // Make sure to close the template literal properly
   
     const values = [
@@ -110,7 +111,7 @@ async function getCampaigns(fb_adAccountID, accessToken) {
       facebookCampaignData.objective, facebookCampaignData.start_time, facebookCampaignData.stop_time, facebookCampaignData.buying_type, 
       facebookCampaignData.budget_remaining, facebookCampaignData.bid_strategy, facebookCampaignData.primary_attribution, facebookCampaignData.source_campaign, 
       facebookCampaignData.special_ad_categories, facebookCampaignData.updated_time, facebookCampaignData.name, facebookCampaignData.ad_account_id, 
-      facebookCampaignData.omni_business_id
+      facebookCampaignData.omni_business_id, facebookCampaignData.smart_promotion_type
     ];
   
     try {
@@ -122,6 +123,26 @@ async function getCampaigns(fb_adAccountID, accessToken) {
   }
   
 
+  // async function populateCampaign_insights(facebookCampaignData, postgres) {
+  //   const query = `
+  //     INSERT INTO fb_campaign_insights (
+  //       campaign_id, account_id, omni_business_id)
+  //     VALUES (
+  //       $1, $2, $3)
+  //     ON CONFLICT (campaign_id) DO UPDATE SET
+  //       account_id = EXCLUDED.account_id,
+  //       omni_business_id = EXCLUDED.omni_business_id;
+  //   `;
+  //   const values = [facebookCampaignData.campaign_id, facebookCampaignData.ad_account_id, facebookCampaignData.omni_business_id];
+
+  //   try {
+  //     await postgres.query(query, values);
+  //     console.log(`PopulateCampaigns.js: Inserted or updated campaign insights: ${facebookCampaignData.campaign_id} successfully`);
+  //   }
+  //   catch (err) {
+  //     console.error('PopulateCampaigns.js: Insert or update error:', err.stack);
+  //   }
+  // }
 
 
 
@@ -153,11 +174,16 @@ async function populateCampaignsMain (postgres, omniBusinessId, fb_adAccountID, 
         name: campaign.name, 
         ad_account_id: fb_adAccountID, // Assuming this is the correct association
         omni_business_id: omniBusinessId,
+        smart_promotion_type: campaign.smart_promotion_type
       }
 
       await populateCampaigns(campaignData, postgres).catch((error) => {
         console.error(`PopulateCampaigns.js: Error populating campaign ${campaignData.campaign_id}: `, error);
       });
+      // await populateCampaign_insights(campaignData, postgres).catch((error) => {
+      //   console.error(`PopulateCampaigns.js: Error populating campaign insights ${campaignData.campaign_id}: `, error);
+      // }
+      // );
     }
   } catch (error) {
     console.error('PopulateCampaigns.js: An error occurred in the main flow', error);
