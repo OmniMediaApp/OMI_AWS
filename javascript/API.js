@@ -101,6 +101,8 @@ const getFilesByProductID = require('./endpoints/databaseQueries/getFilesByProdu
 const generateMoreTextOptions = require('./endpoints/generateMoreTextOptions');
 const getPixelsByBID = require('./endpoints/databaseQueries/getPixelsByBID');
 const createFacebookAd = require('./endpoints/createFacebookAd');
+const getPagesByBID = require('./endpoints/databaseQueries/getPagesByBID');
+const { default: axios } = require('axios');
   const aws_s3_storage = multer.memoryStorage(); // Store files in memory
   const upload = multer({ aws_s3_storage });
   
@@ -189,7 +191,7 @@ app.get('/getShopifyOverview', async (req, res) => {
   }
 });
 
-app.get('/createDraft', async (req, res) => {
+app.post('/createDraft', async (req, res) => {
   try{
     const result = await createDraft(postgres, db, req, res);
     res.send(result);
@@ -484,6 +486,33 @@ app.get('/getPixelsByBID', async (req, res) => {
   }
 });
 
+
+app.get('/getPagesByBID', async (req, res) => {
+  try {
+    const result = await getPagesByBID(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/getPixelInsights', async (req, res) => {
+  try {
+    const omniBusinessID = req.query.omniBusinessID;
+    const businessRef = db.collection('businesses').doc(omniBusinessID);
+    const doc = await businessRef.get();
+    const facebookBusinessID = doc.data().facebookBusinessID;
+    const facebookAccessToken = doc.data().facebookAccessToken;
+    console.log(`https://graph.facebook.com/v19.0/${facebookBusinessID}?fields=adspixels{name,id,stats{start_time,data}}&access_token=${facebookAccessToken}`)
+    const result = await axios.get(`https://graph.facebook.com/v19.0/${facebookBusinessID}?fields=adspixels{name,id,stats{start_time,data}}&access_token=${facebookAccessToken}`)
+    res.send(result.data);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
 
 
 
