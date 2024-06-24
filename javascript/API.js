@@ -20,7 +20,6 @@ const populateAll = require('./tests/populateAll');
 const getFacebookAccessToken = require('./endpoints/getFacebookRefreshToken');
 const getAds = require('./endpoints/databaseQueries/getAds');
 const getAdAccountsByBID = require('./endpoints/databaseQueries/getAdAccountsByBID');
-//const saveHistoricalShopifyStats = require('./endpoints/saveHistoricalShopifyStats');
 const getFileStructure = require('./endpoints/databaseQueries/getFileStructure');
 const uploadFile = require('./endpoints/uploadFile');
 const updateFileParent = require('./endpoints/databaseQueries/updateFileParent');
@@ -28,6 +27,15 @@ const updateFileName = require('./endpoints/databaseQueries/updateFileName');
 const updateFileProductID = require('./endpoints/databaseQueries/updateFileProductID');
 const populateShopifyProductsMain = require('./endpoints/populateShopifyProducts');
 const downloadFileFromS3 = require('./endpoints/downloadFileFromS3');
+const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
+const populateFacebookInsightsMain = require('./populateFacebookInsights/populateFacebookInsights');
+const populateFacebookVideoInsightsMain = require('./populateFacebookInsights/populateFacebookVideoInsights');
+const populateFacebookImageInsightsMain = require('./populateFacebookInsights/populateFacebookImageInsights');
+const createShopifyWebhook = require('./endpoints/createShopifyWebhook');
+const updateShopifyPorductsMain = require('./endpoints/updateShopifyProducts');
+const generalSearch = require('./endpoints/databaseQueries/generalAdSearch');
+const crypto = require('crypto');
+const getShopifyStats = require('./endpoints/getShopifyStats');
 require('dotenv').config();
 
 const app = express();
@@ -66,23 +74,6 @@ const postgres = new Client(dbOptions);
 postgres.connect()
   .then(() => console.log('Connected to the database'))
   .catch(err => console.error('Connection error', err.stack));
-
-  // async function connectToDatabase() {
-  //     try {
-  //         await postgres.connect();
-  //         console.log('Connected to the database');
-  //     } catch (err) {
-  //         console.error('Database connection error', err.stack);
-  //         process.exit(1);
-  //     }
-  // }
-  const omniBusinessId = 'b_zfPwbkxKMDfeO1s9fn5TejRILh34hd';
-  const accessToken = process.env.FB_ACCESS_TOKEN;
-  const fb_businessID = '499682821437696';
-  const fb_adAccountID = 'act_331027669725413';
-
-
-
   // Initialize AWS S3 storage bucket
   const s3 = new S3Client({
     region: process.env.AWS_REGION,
@@ -92,42 +83,13 @@ postgres.connect()
     },
   });
   const multer = require('multer');
-const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
-const populateFacebookInsightsMain = require('./endpoints/populateFacebookInsights');
-const insertNewFolder = require('./endpoints/databaseQueries/insertNewFolder');
-const updateFileFavorite = require('./endpoints/databaseQueries/updateFileFavorite');
-const getShopifyProduct = require('./endpoints/databaseQueries/getShopifyProduct');
-const getFilesByProductID = require('./endpoints/databaseQueries/getFilesByProductID');
-const generateMoreTextOptions = require('./endpoints/generateMoreTextOptions');
-const getPixelsByBID = require('./endpoints/databaseQueries/getPixelsByBID');
-const createFacebookAd = require('./endpoints/createFacebookAd');
+
   const aws_s3_storage = multer.memoryStorage(); // Store files in memory
   const upload = multer({ aws_s3_storage });
   
 
 
-function saveShopifyStatsAtMidnight() {
-  console.log('Running at midnight!');
-  saveShopifyStats(db)
-}
 
-function checkMidnight() {
-  const now = new Date();
-  if (now.getHours() === 0 && now.getMinutes() === 0 && now.getSeconds() === 0) {
-    saveShopifyStatsAtMidnight();
-  }
-}
-setInterval(checkMidnight, 1000);
-
-app.get('/saveShopifyStats', async (req, res) => {
-  try {
-    const result = await saveShopifyStats(db);
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while saving Shopify stats.' });
-  }
-});
 app.get('/saveHistoricalStats', async (req, res) => {
   try {
     const result = await saveHistoricalShopifyStats(db);
@@ -191,8 +153,8 @@ app.get('/getShopifyOverview', async (req, res) => {
 
 app.get('/createDraft', async (req, res) => {
   try{
-    const result = await createDraft(postgres, db, req, res);
-    res.send(result);
+  const result = await createDraft(db, req, res);
+  res.send(result);
   } catch (error){
     console.error(error);
     res.status(500).send({error: 'An error occurred while creating draft.'})
@@ -200,10 +162,11 @@ app.get('/createDraft', async (req, res) => {
 
 }); 
 
-app.post('/createFacebookAd', async (req, res) => {
+
+app.get('/createFacebookAd', async (req, res) => {
   try{
-    const result = await createFacebookAd(db, req, res);
-    res.send(result);
+  const result=(await createFacebookAd(db, req, res));
+  res.send(result);
   } catch (error){
     console.error(error);
     res.status(500).send({error: 'An error occured while creating facebook ad'})
@@ -241,20 +204,6 @@ app.post('/getFacebookRefreshToken', async (req, res) => {
   }
 });
 
-app.post('/populateFaceBook', async (req, res) => {
-  try {
-    const omniBusinessId = req.body.omniBusinessId;
-    const fb_businessID = req.body.fb_businessID;
-    const fb_adAccountID = req.body.fb_adAccountID;
-    const accessToken = req.body.accessToken;
-    
-    const result = await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while populating all.' });
-  }
-});
 
 app.get('/getAds', async (req, res) => {
   try {
@@ -274,6 +223,18 @@ app.get('/getAdAccountsByBID', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+app.post('/uploadFile', upload.single('file'), async (req, res) => {
+
+
+  try {
+    const result = await uploadFile(postgres, s3, PutObjectCommand, req, res);
+    res.status(200).send({ data: result });
+  } catch (err) {
+    console.log(err)
+    res.status(500).send(err);
   }
 });
 
@@ -297,35 +258,117 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// Webhook event handling endpoint
-app.post('/webhook', (req, res) => {
-  const data = req.body;
-  console.log("hello");
-console.log(JSON.stringify(data, null, 2));
-insertFbWebhookData(data, postgres);
-// if (data.object === 'ad_account') {
-//     data.entry.forEach((entry) => {
-//         const adAccountId = entry.id;
-//         entry.changes.forEach((change) => {
-//             handleAdAccountChange(adAccountId, change);
-//         });
-//     });
+// Webhook event handling endpoint for shopify
+
+// async function verifyShopifyWebhook(req, res, next) {
+//   const shopDomain = req.get('X-Shopify-Shop-Domain');
+//   const hmac = req.get('X-Shopify-Hmac-Sha256');
+//   const body = JSON.stringify(req.body);
+//   console.log("Hamc req ", hmac);
+
+//   try {
+//     // Query Firestore to get the user document based on shopDomain
+//     const snapshot = await db.collection('businesses').where('shopifyDomain', '==', shopDomain).limit(1).get();
+    
+//     if (snapshot.empty) {
+//       return res.status(401).send('Unauthorized: Unknown shop domain');
+//     }
+
+//     const userDoc = snapshot.docs[0];
+//     const user = userDoc.data();
+//     const secret = user.shopifyAdminAccessToken; // Assuming this is the shared secret
+//     console.log(secret);
+
+//     const hash = crypto
+//       .createHmac('sha256', secret)
+//       .update(body, 'utf8')
+//       .digest('base64');
+
+//     console.log(`Calculated HMAC: ${hash}`);
+//     console.log(`Received HMAC: ${hmac}`);
+
+//     if (hash === hmac) {
+//       req.shopDomain = shopDomain; // Attach shop domain to request object
+//       next();
+//     } else {
+//       res.status(401).send('Unauthorized: Invalid HMAC');
+//     }
+//   } catch (error) {
+//     console.error('Error verifying webhook:', error);
+//     res.status(500).send('Internal Server Error');
+//   }
 // }
-
-res.status(200).send('EVENT_RECEIVED');
-});
-
-
-
-app.post('/uploadFile', upload.single('file'), async (req, res) => {
+// Webhook endpoint
+app.post('/shopify/webhook', async (req, res) => {
   try {
-    const result = await uploadFile(postgres, s3, PutObjectCommand, req, res);
-    res.status(200).send({ data: result });
-  } catch (err) {
-    console.log(err)
-    res.status(500).send(err);
+  const webhookEvent = req.body;
+  const productID = req.body.id;
+  const shopDomain = req.get('X-Shopify-Shop-Domain');
+  const snapshot = await db.collection('businesses').where('shopifyDomain', '==', shopDomain).limit(1).get();
+  //console.log(`Received webhook from ${shopDomain}:`, webhookEvent);
+  if (!snapshot.empty) {
+    snapshot.forEach(doc => {
+      omniBusinessId = doc.id;
+
+    });
+     await updateShopifyPorductsMain(db, postgres, omniBusinessId, productID);
+  } else {
+    console.log('No matching documents.');
   }
+ 
+  
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while handling Shopify webhook.' });
+  }
+  
+
+  // Handle the webhook event (e.g., save to database, trigger other actions)
+  // ...
+
+  res.status(200).send('Webhook received');
 });
+app.get('/createShopifyWebhook'), async (req, res) => {
+  try {
+    const omniBusinessId = req.omniBusinessId;
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const shopifyDomain = busSnap.data().shopifyDomain;
+    const shopifyAccessToken = busSnap.data().shopifyAdminAccessToken;
+    const webhookUrl = 'https://950a-2600-1009-a021-f16d-bd1e-45e8-571b-28eb.ngrok-free.app/shopify/webhook';
+    const result = await createShopifyWebhook(shopifyDomain, shopifyAccessToken, webhookUrl);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while creating Shopify webhook.' });
+  }
+}
+
+app.post('/getShopifyStats', async (req, res) => {
+  try {
+    const result = await getShopifyStats(db,postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while fetching Shopify stats.' });
+  }
+}
+);
+
+
+
+app.post('/search', async (req, res) => {
+  try {
+    const result = await generalSearch(postgres, req, res);
+    res.send(result);
+  }
+  catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' });
+  }
+}
+);
 
 
 app.get('/getFileStructure', async (req, res) => {
@@ -369,7 +412,7 @@ app.get('/updateFileProductID', async (req, res) => {
   }
 });
 
-app.post('/populateShopifyProducts', async (req, res) => {
+app.get('/populateShopifyProducts', async (req, res) => {
   try {
     const result = await populateShopifyProductsMain(db, postgres, req, res);
     res.send(result);
@@ -401,98 +444,81 @@ app.get('/downloadFileFromS3', async (req, res) => {
   }
 });
 
+app.post('/populateFaceBook', async (req, res) => {
+  try {
+    const omniBusinessId = req.body.omniBusinessId;
+    const activeOnly = req.body.activeOnly;
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const fb_access_token = busSnap.data().facebookAccessToken;
+    const fb_adAccountIDs = busSnap.data().facebookAdAccountIDs;
+    const fb_businessID = busSnap.data().facebookBusinessID;
+    for (const fb_adAccountID of fb_adAccountIDs) {     
+      await populateAll(postgres, omniBusinessId, fb_businessID, fb_adAccountID, fb_access_token, activeOnly);
+    }
+    res.send("success");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while populating all.' });
+  }
+});
+
 app.post('/populateFacebookInsights', async (req, res) => {
   try {
     const omniBusinessId = req.body.omniBusinessId;
-    const fb_businessID = req.body.fb_businessID;
-    const fb_adAccountID = req.body.fb_adAccountID;
-    const accessToken = req.body.accessToken;
-    const result = await populateFacebookInsightsMain(postgres, omniBusinessId, fb_businessID, fb_adAccountID, accessToken);
-    res.send(result);
+
+    const date_count = req.body.date_count;
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const fb_access_token = busSnap.data().facebookAccessToken; 
+    const fb_adAccountIDs = busSnap.data().facebookAdAccountIDs;
+    const fb_businessID = busSnap.data().facebookBusinessID;
+    for (const fb_adAccountID of fb_adAccountIDs) {
+      await populateFacebookInsightsMain(postgres, omniBusinessId, fb_businessID, fb_adAccountID, fb_access_token, date_count);
+    }
+    res.status(200).send("success");
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while updating db' }); 
   }
 });
 
-app.post('/insertNewFolder', async (req, res) => {
+app.post('/populateFacebookVideoInsights', async (req, res) => {
   try {
-    const result = await insertNewFolder (postgres, req, res);
-    res.send(result)
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while querying db' }); 
-  }
-});
-
-
-app.get('/updateFileFavorite', async (req, res) => {
-  try {
-    const result = await updateFileFavorite(postgres, req, res);
-    res.send(result);
+    const omniBusinessId = req.body.omniBusinessId;
+    const date_count = req.body.date_count;
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const fb_access_token = busSnap.data().facebookAccessToken;
+    const fb_adAccountIDs = busSnap.data().facebookAdAccountIDs;
+    const fb_businessID = busSnap.data().facebookBusinessID;
+    for (const fb_adAccountID of fb_adAccountIDs) {
+      await populateFacebookVideoInsightsMain(postgres, omniBusinessId, fb_businessID, fb_adAccountID, fb_access_token, date_count);
+    }
+    res.send("success");
   } catch (error) {
     console.error(error);
     res.status(500).send({ error: 'An error occurred while updating db' }); 
   }
 });
-
-
-
-app.get('/getShopifyProduct', async (req, res) => {
+app.post('/populateFacebookImageInsights', async (req, res) => {
   try {
-    const product_id = req.query.product_id;
-    const result = await getShopifyProduct(postgres, product_id);
-    res.send(result);
+    const omniBusinessId = req.body.omniBusinessId;
+    const date_count = req.body.date_count;
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const fb_access_token = busSnap.data().facebookAccessToken;
+    const fb_adAccountIDs = busSnap.data().facebookAdAccountIDs;
+    const fb_businessID = busSnap.data().facebookBusinessID;
+    for (const fb_adAccountID of fb_adAccountIDs) {
+      await populateFacebookImageInsightsMain(postgres, omniBusinessId, fb_businessID, fb_adAccountID, fb_access_token, date_count);
+    }
+    res.send("success");
   } catch (error) {
     console.error(error);
-    res.status(500).send({ error: 'An error occurred while querying db' }); 
+    res.status(500).send({ error: 'An error occurred while updating db' }); 
   }
 });
-
-
-app.get('/getFilesByProductID', async (req, res) => {
-  try {
-    const result = await getFilesByProductID(postgres, req, res);
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while querying db' }); 
-  }
-});
-
-app.post('/generateMoreTextOptions', async (req, res) => {
-  try {
-    const options = req.body.options;
-    const type = req.body.type;
-    const draftID = req.body.draftID;
-    const result = await generateMoreTextOptions(db, options, type, draftID);
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while generating more text options.' });
-  }
-});
-
-
-app.get('/getPixelsByBID', async (req, res) => {
-  try {
-    const result = await getPixelsByBID(postgres, req, res);
-    res.send(result);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ error: 'An error occurred while querying db' }); 
-  }
-});
-
-
-
-
-
-
-
-
-
-
 
 
 

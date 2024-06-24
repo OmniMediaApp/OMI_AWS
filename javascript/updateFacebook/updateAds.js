@@ -12,11 +12,6 @@ async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, m
         console.log(response.data)
 
         const adAccountUsage = response.headers['x-business-use-case-usage'];
-        if (!adAccountUsage) {
-            console.log('PopulateAds.js: No business use case usage data found in the headers.');
-            return null;
-        }
-        
         const usageData = JSON.parse(adAccountUsage);
         const { call_count, total_cputime, total_time, estimated_time_to_regain_access } = usageData[account_id][0];
         const maxUsage = Math.max(call_count, total_cputime, total_time);
@@ -55,20 +50,19 @@ async function fetchWithRateLimit(url, params, fb_adAccountID, retryCount = 0, m
     }
 }
 
-async function getAds(fb_adAccountID, accessToken, activeOnly) {
-    const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}/ads`;
+async function getAds(fb_adAccountID, accessToken, ids) {
+    const apiUrl = `https://graph.facebook.com/v19.0/${fb_adAccountID}?`;
     const fields = 'account_id,ad_active_time,ad_review_feedback,ad_schedule_end_time,ad_schedule_start_time,adset_id,campaign_id,configured_status,conversion_domain,created_time,creative,id,effective_status,bid_amount,last_updated_by_app_id,name,preview_shareable_link,recommendations,source_ad,source_ad_id,status,tracking_specs,updated_time,adcreatives{id}';
     let allData = [];
     let nextPageUrl = apiUrl;
     let params = {
+        ids: ids, 
         fields: fields,
         access_token: accessToken,
         limit: 200
+        
     };
 
-    if (activeOnly) {
-        params['filtering'] = '[{"field":"effective_status","operator":"IN","value":["ACTIVE"]}]';
-    }
 
     let i = 0;
     do {
@@ -80,7 +74,7 @@ async function getAds(fb_adAccountID, accessToken, activeOnly) {
             nextPageUrl = response.paging?.next || null;
             params = {};
         } else {
-            console.log('PopulateAds.js: No data field in response:', response);
+            console.error('PopulateAds.js: No data field in response:', response);
             break;
         }
     } while (nextPageUrl);
@@ -99,7 +93,7 @@ async function populateAds(facebookAdDataBatch, postgres) {
         ${facebookAdDataBatch.map((_, i) => `(
             $${i * 17 + 1}, $${i * 17 + 2}, $${i * 17 + 3}, $${i * 17 + 4}, $${i * 17 + 5}, $${i * 17 + 6}, 
             $${i * 17 + 7}, $${i * 17 + 8}, $${i * 17 + 9}, $${i * 17 + 10}, $${i * 17 + 11}, 
-            $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}, $${i * 17 + 17}
+            $${i * 17 + 12}, $${i * 17 + 13}, $${i * 17 + 14}, $${i * 17 + 15}, $${i * 17 + 16}
         )`).join(', ')}
         ON CONFLICT (ad_id) DO UPDATE SET
             adset_id = EXCLUDED.adset_id,
@@ -116,8 +110,7 @@ async function populateAds(facebookAdDataBatch, postgres) {
             source_ad_id = EXCLUDED.source_ad_id,
             status = EXCLUDED.status,
             tracking_specs = EXCLUDED.tracking_specs,
-            ad_active_time = EXCLUDED.ad_active_time,
-            omni_business_id = EXCLUDED.omni_business_id;
+            ad_active_time = EXCLUDED.ad_active_time;
     `;
 
     const values = [];
@@ -127,7 +120,7 @@ async function populateAds(facebookAdDataBatch, postgres) {
             facebookAdData.name, facebookAdData.configured_status, facebookAdData.created_time,
             facebookAdData.creative, facebookAdData.effective_status, facebookAdData.last_updated_by_app_id,
             facebookAdData.preview_shareable_link, facebookAdData.source_ad, `{${facebookAdData.source_ad_id}}`,
-            facebookAdData.status, JSON.stringify(facebookAdData.tracking_specs), facebookAdData.ad_active_time, facebookAdData.omni_business_id
+            facebookAdData.status, JSON.stringify(facebookAdData.tracking_specs), facebookAdData.ad_active_time
         );
     }
 
@@ -142,11 +135,11 @@ async function populateAds(facebookAdDataBatch, postgres) {
     }
 }
 
-async function populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessToken, activeOnly) {
+async function updateAdsMain(postgres, fb_adAccountID, accessToken, ids) {
     try {
-        const facebookAdData = await getAds(fb_adAccountID, accessToken, activeOnly);
+        const facebookAdData = await getAds(fb_adAccountID, accessToken, ids);
         if (!facebookAdData) {
-            return console.log('PopulateAds.js: No ads data fetched.');
+            throw new Error('PopulateAds.js: No ads data fetched.');
         }
 
         const batchSize = 10;
@@ -167,8 +160,7 @@ async function populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessT
                 source_ad_id: ad.source_ad_id,
                 status: ad.status,
                 tracking_specs: ad.tracking_specs,
-                ad_active_time: ad.ad_active_time,
-                omni_business_id: omniBusinessId
+                ad_active_time: ad.ad_active_time
             }));
 
             await populateAds(adBatch, postgres);
@@ -178,4 +170,4 @@ async function populateAdsMain(postgres, omniBusinessId, fb_adAccountID, accessT
     }
 }
 
-module.exports = populateAdsMain;
+module.exports = updateAdsMain;

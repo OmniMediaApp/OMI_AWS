@@ -3,7 +3,7 @@ const axios = require('axios');
 
 async function getPages(fb_businessID, accessToken) {
     const apiUrl = `https://graph.facebook.com/v19.0/${fb_businessID}`;
-    const fields = `owned_pages{name,access_token,username,verification_status,website},client_pages{name,access_token}`;
+    const fields = `owned_pages{name,access_token,username,verification_status,website,picture},client_pages{name,access_token}`;
     try {
         const response = await axios.get(apiUrl, {
             params: {
@@ -21,9 +21,9 @@ async function getPages(fb_businessID, accessToken) {
 async function populatePages(pageData, postgres) {
     const query = `
         INSERT INTO fb_pages
-            (id, name, access_token, username, verification_status, website, is_client, omni_business_id) 
+            (id, name, access_token, username, verification_status, website, is_client, picture ,omni_business_id) 
         VALUES 
-            ($1, $2, $3, $4, $5, $6, $7, $8)
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT (id) DO UPDATE SET 
             name = EXCLUDED.name,
             access_token = EXCLUDED.access_token,
@@ -31,6 +31,7 @@ async function populatePages(pageData, postgres) {
             verification_status = EXCLUDED.verification_status,
             website = EXCLUDED.website,
             is_client = EXCLUDED.is_client,
+            picture = EXCLUDED.picture,
             omni_business_id = EXCLUDED.omni_business_id;
     `;
     const values = [
@@ -41,6 +42,7 @@ async function populatePages(pageData, postgres) {
         pageData.verification_status,
         pageData.website,
         pageData.is_client_page,
+        pageData.picture,
         pageData.omni_business_id
     ];
 
@@ -77,6 +79,7 @@ async function populatePagesMain(postgres, omniBusinessId, fb_businessID, access
                 verification_status: page.verification_status,
                 website: page.website || null,
                 is_client_page: page.is_client_page,
+                picture: page.picture?.data?.url,
                 omni_business_id: omniBusinessId
             };
 

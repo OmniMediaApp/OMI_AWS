@@ -242,7 +242,11 @@ async function getMedia(fb_adAccountID, accessToken) {
 
   async function populateAdVideosMain(postgres, omniBusinessId, fb_adAccountID, accessToken) {
     const facebookMediaData = await getMedia(fb_adAccountID, accessToken);
-  
+    
+    if (!facebookMediaData || facebookMediaData.length === 0) {
+      
+      return console.log('PopulateAdVideos.js: No media data found.');
+    }
     for (const advideo of facebookMediaData) {
       if (!advideo.id) {
         console.error('PopulateAdVideos.js: Missing video ID for advideo:', advideo);
