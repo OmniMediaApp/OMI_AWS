@@ -10,18 +10,19 @@ async function createFacebookAd(db, req, res) {
         const businessData = await getBusinessData(db, uid);
         const facebookAccessToken = businessData.facebookAccessToken;
         const api = adsSdk.FacebookAdsApi.init(facebookAccessToken);
-
+        
         const draftData = await getDraftData(db, draftID);
-        const adDetails = await prepareAdDetails(draftData, facebookAccessToken);
 
-        const campaignID = await createCampaign(adDetails, api);
-        const adSetID = await createAdSet(adDetails, api, campaignID);
-        const adCreativeID = await createAdCreative(adDetails, api);
-        const adID = await createAd(adDetails, api, adSetID, adCreativeID);
+        const imghash = await uploadImageToFacebook('https://cdn.shopify.com/s/files/1/0659/1581/4142/files/15_1.jpg?v=1700809255', facebookAccessToken, draftData.fb_AdAccount.account_id);
+        
+        const campaignID = await createCampaign(draftData);
+        const adSetID = await createAdSet(draftData, campaignID);
+        const adCreativeID = await createAdCreative(draftData, imghash);
+        const adID = await createAd(draftData, adSetID, adCreativeID);
 
-        const adRef = await saveAdsToAdsTree(db, adID, adSetID, campaignID, adDetails.adAccountId, uid, draftID);
-        await saveAdsRefToDrafts(db, draftID, adRef);
-        await saveAdsRefToProducts(db, draftID, adRef);
+        // const adRef = await saveAdsToAdsTree(db, adID, adSetID, campaignID, draftData.adAccountId, uid, draftID);
+        // await saveAdsRefToDrafts(db, draftID, adRef);
+        // await saveAdsRefToProducts(db, draftID, adRef);
 
         res.status(200).send({ data: 'success' });
     } catch (error) {
@@ -53,35 +54,10 @@ async function getDraftData(db, draftID) {
     return draftData.data();
 }
 
-async function prepareAdDetails(draftData, facebookAccessToken) {
-    const adAccountId = draftData.fb_AdAccount.account_id;
-    const imageHash = 1 //= await uploadImageToFacebook(draftData.selectedAdPhoto, facebookAccessToken, adAccountId);
-
-    return {
-        adAccountId,
-        campaignName: draftData.optimizedProductName + " Campaign",
-        adSetName: draftData.optimizedProductName + " Ad Set",
-        pixelID: draftData.fb_Pixel.pixel_id,
-        adName: draftData.optimizedProductName + " Ad",
-        pageId: draftData.fb_Page.id,
-        imageHash,
-        adLink: draftData.productUrl,
-        adMessage: draftData.fb_PrimaryText,
-        headlineText: draftData.fb_HeadlineText,
-        descriptionText: draftData.fb_DescriptionText,
-        selectedInterest: draftData.fb_InterestSelected,
-        adGender: draftData.fb_Gender,
-        adAge: draftData.fb_Age,
-        adCTA: draftData.fb_CTA,
-        budget: draftData.fb_Budget * 100,
-        productId: draftData.productId,
-    };
-}
-
-async function createCampaign(adDetails, api) {
-    const adAccount = new adsSdk.AdAccount(adDetails.adAccountId);
+async function createCampaign(adDetails) {
+    const adAccount = new adsSdk.AdAccount(adDetails.fb_AdAccount.account_id);
     const campaignParams = {
-        name: adDetails.selectedInterest.name + " Campaign",
+        name: adDetails.fb_InterestSelected.name + " Campaign",
         objective: adsSdk.Campaign.Objective.outcome_sales,
         status: adsSdk.Campaign.Status.paused,
         special_ad_categories: "NONE",
@@ -91,27 +67,28 @@ async function createCampaign(adDetails, api) {
     return campaign.id;
 }
 
-async function createAdSet(adDetails, api, campaignID) {
-    const adAccount = new adsSdk.AdAccount(adDetails.adAccountId);
+async function createAdSet(adDetails, campaignID) {
+    const adAccount = new adsSdk.AdAccount(adDetails.fb_AdAccount.account_id);
     const adSetParams = {
-        name: adDetails.selectedInterest.name + " Ad Set",
+        name: adDetails.fb_InterestSelected.name + " Ad Set",
         campaign_id: campaignID,
         status: adsSdk.AdSet.Status.active,
+        is_dynamic_creative: true, // Enable dynamic creative
         targeting: {
             geo_locations: { countries: ['US'] },
-            interests: [{ id: adDetails.selectedInterest.id, name: adDetails.selectedInterest.name }],
-            genders: mapGender(adDetails.adGender),
-            age_min: adDetails.adAge[0],
-            age_max: adDetails.adAge[1],
+            interests: [{ id: adDetails.fb_InterestSelected.id, name: adDetails.fb_InterestSelected.name }],
+            genders: mapGender(adDetails.fb_Gender),
+            age_min: adDetails.fb_Age[0],
+            age_max: adDetails.fb_Age[1],
         },
-        daily_budget: adDetails.budget,
+        daily_budget: adDetails.fb_Budget * 100,
         bid_strategy: "LOWEST_COST_WITHOUT_CAP",
         billing_event: "IMPRESSIONS",
         optimization_goal: 'OFFSITE_CONVERSIONS',
         pacing_type: ['standard'],
         promoted_object: {
             custom_event_type: 'PURCHASE',
-            pixel_id: adDetails.pixelID,
+            pixel_id: adDetails.fb_Pixel.pixel_id,
         },
         start_time: '2023-01-01T00:00:00Z',
         end_time: '2025-02-01T00:00:00Z',
@@ -121,25 +98,32 @@ async function createAdSet(adDetails, api, campaignID) {
     return adSet.id;
 }
 
-async function createAdCreative(adDetails, api) {
-    const adAccount = new adsSdk.AdAccount(adDetails.adAccountId);
+async function createAdCreative(adDetails, imghash) {
+    const adAccount = new adsSdk.AdAccount(adDetails.fb_AdAccount.account_id);
     const ctaButtonParams = {
-        type: adDetails.adCTA,
-        value: { link: adDetails.adLink },
+        type: adDetails.fb_CTA,
+        value: { link: adDetails.productUrl },
     };
 
     const adCreativeParams = {
-        name: 'Ad Creative Name',
+        name: 'Dynamic Ad Creative',
         object_story_spec: {
-            page_id: adDetails.pageId,
-            link_data: {
-                image_hash: adDetails.imageHash,
-                link: adDetails.adLink,
-                message: adDetails.adMessage,
-                call_to_action: ctaButtonParams,
-                name: adDetails.headlineText,
-                description: adDetails.descriptionText,
-            },
+            page_id: adDetails.fb_Page.id,
+        },
+        asset_feed_spec: {
+            images: [
+                { hash: imghash },
+               // { hash: adDetails.imageHash2 }
+            ],
+            bodies: adDetails.fb_PrimaryTextSelected.map(text => ({ text })),
+            titles: adDetails.fb_HeadlineTextSelected.map(text => ({ text })),
+            descriptions: adDetails.fb_DescriptionTextSelected.map(text => ({ text })),
+            ad_formats: ['AUTOMATIC_FORMAT'],
+            call_to_action_types: [adDetails.fb_CTA],
+            link_urls: [
+                { website_url: adDetails.productUrl }
+            ],
+            videos: [] // Add video IDs if you have videos
         },
         'degrees_of_freedom_spec': {
             'creative_features_spec': {
@@ -150,14 +134,16 @@ async function createAdCreative(adDetails, api) {
         },
     };
 
+    console.log(adDetails.fb_PrimaryTextSelected[0]);
+
     const adCreative = await adAccount.createAdCreative([adsSdk.AdCreative.Fields.id], adCreativeParams);
     return adCreative.id;
 }
 
-async function createAd(adDetails, api, adSetID, adCreativeID) {
-    const adAccount = new adsSdk.AdAccount(adDetails.adAccountId);
+async function createAd(adDetails, adSetID, adCreativeID) {
+    const adAccount = new adsSdk.AdAccount(adDetails.fb_AdAccount.account_id);
     const adParams = {
-        name: adDetails.selectedInterest.name + " Ad",
+        name: adDetails.fb_InterestSelected.name + " Ad",
         adset_id: adSetID,
         creative: { creative_id: adCreativeID },
         status: adsSdk.Ad.Status.paused,
@@ -215,7 +201,7 @@ async function saveAdsRefToProducts(db, draftID, adRef) {
 
 function mapGender(adGender) {
     if (adGender === 'all') return [0];
-    if (adGender === 'men') return [1];
+    if ( adGender === 'men') return [1];
     if (adGender === 'women') return [2];
     return [];
 }

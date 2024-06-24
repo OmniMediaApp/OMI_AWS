@@ -11,10 +11,9 @@ async function createDraft(postgres, db, req, res) {
 
   try {
     //FROM REQUEST
-    const scrape = req.query.scrape;
-    const product = JSON.parse(req.query.product) || '';
-    const product_id = req.query.product_id;
+    const product = req.body.product;
     const uid = req.query.uid;
+
 
     //FROM FIRESTORE
     const businessData = await getBusinessData(db, uid);
@@ -24,53 +23,38 @@ async function createDraft(postgres, db, req, res) {
     const lastUsedFacebookPage = businessData.lastUsedFacebookPage;
     const facebookAccessToken = businessData.facebookAccessToken;
 
-    //GETTING THE PRODUCT INFO
-    let productInfo = '';
-    if (scrape == 'true') {
-      productInfo = await getProductInfo(postgres, product_id);
-    } else {
-      let imageInfoArray = [];
-      for (let i = 0; i < product.images.length; i++) {
-        imageInfoArray.push({src: product.images[i]?.img_src})
-      }
-      productInfo = {
-        imageInfoArray: imageInfoArray,
-        product_name: product.product_title,
-        product_description: product.description
-      }
-      //console.log(productInfo)
-    }
-    if (!productInfo) {
-      res.status(500).json({ error: 'Failed to scrape product information.' });
-      return;    
-    }
-    const productUrl = product.online_store_url;
-
 
 
     //GETTING AND PARSING THE AI RESPONSE
-    const aiResponse = await generateContent(productInfo.product_name, productInfo.product_description);
+    const aiResponse = await generateContent(product.product_title, product.description);
     const aiResponseLines = aiResponse.split('\n');
-    const fb_PrimaryText1 = aiResponseLines[0].substring(3).trim();
-    const fb_PrimaryText2 = aiResponseLines[1].substring(3).trim();
-    const fb_PrimaryText3 = aiResponseLines[2].substring(3).trim();
-    const fb_PrimaryText4 = aiResponseLines[3].substring(3).trim();
-    const fb_PrimaryText5 = aiResponseLines[4].substring(3).trim();
-    const fb_HeadlineText1 = aiResponseLines[5].substring(3).trim();
-    const fb_HeadlineText2 = aiResponseLines[6].substring(3).trim();
-    const fb_HeadlineText3 = aiResponseLines[7].substring(3).trim();
-    const fb_HeadlineText4 = aiResponseLines[8].substring(3).trim();
-    const fb_HeadlineText5 = aiResponseLines[9].substring(3).trim();
-    const fb_DescriptionText1 = aiResponseLines[10].substring(3).trim();
-    const fb_DescriptionText2 = aiResponseLines[11].substring(3).trim();
-    const fb_DescriptionText3 = aiResponseLines[12].substring(3).trim();
-    const fb_DescriptionText4 = aiResponseLines[13].substring(3).trim();
-    const fb_DescriptionText5 = aiResponseLines[14].substring(3).trim();
-    const fb_Location = aiResponseLines[15].substring(3).trim();
-    const fb_Age = aiResponseLines[16].substring(3).trim();
-    const fb_Gender = aiResponseLines[17].substring(3).trim();
-    const fb_Interests = aiResponseLines[18].substring(3).trim();
-    const fb_CTA = aiResponseLines[19].substring(3).trim();
+    
+    const removeQuotes = (str) => str.replace(/^"|"$/g, ''); // Function to remove surrounding quotes
+    
+    const fb_PrimaryText1 = removeQuotes(aiResponseLines[0].substring(3).trim());
+    const fb_PrimaryText2 = removeQuotes(aiResponseLines[1].substring(3).trim());
+    const fb_PrimaryText3 = removeQuotes(aiResponseLines[2].substring(3).trim());
+    const fb_PrimaryText4 = removeQuotes(aiResponseLines[3].substring(3).trim());
+    const fb_PrimaryText5 = removeQuotes(aiResponseLines[4].substring(3).trim());
+    const fb_HeadlineText1 = removeQuotes(aiResponseLines[5].substring(3).trim());
+    const fb_HeadlineText2 = removeQuotes(aiResponseLines[6].substring(3).trim());
+    const fb_HeadlineText3 = removeQuotes(aiResponseLines[7].substring(3).trim());
+    const fb_HeadlineText4 = removeQuotes(aiResponseLines[8].substring(3).trim());
+    const fb_HeadlineText5 = removeQuotes(aiResponseLines[9].substring(3).trim());
+    const fb_DescriptionText1 = removeQuotes(aiResponseLines[10].substring(3).trim());
+    const fb_DescriptionText2 = removeQuotes(aiResponseLines[11].substring(3).trim());
+    const fb_DescriptionText3 = removeQuotes(aiResponseLines[12].substring(3).trim());
+    const fb_DescriptionText4 = removeQuotes(aiResponseLines[13].substring(3).trim());
+    const fb_DescriptionText5 = removeQuotes(aiResponseLines[14].substring(3).trim());
+    const fb_Location = removeQuotes(aiResponseLines[15].substring(3).trim());
+    const fb_Age = removeQuotes(aiResponseLines[16].substring(3).trim());
+    const fb_Gender = removeQuotes(aiResponseLines[17].substring(3).trim());
+    const fb_Interests = removeQuotes(aiResponseLines[18].substring(3).trim());
+    const fb_CTA = removeQuotes(aiResponseLines[19].substring(3).trim());
+    const fb_campaignTitle = removeQuotes(aiResponseLines[20].substring(3).trim());
+    const fb_adsetTitle = removeQuotes(aiResponseLines[21].substring(3).trim());
+    const fb_adTitle = removeQuotes(aiResponseLines[22].substring(3).trim());
+    
 
 
     //GETTING ALL POSSIBLE LOCATIONS AND INTERESTS FROM FACEBOOK
@@ -93,13 +77,17 @@ async function createDraft(postgres, db, req, res) {
       fb_Gender, 
       fb_VerifiedInterests, 
       fb_CTA, 
-      productInfo.imageInfoArray, 
+      fb_campaignTitle,
+      fb_adsetTitle,
+      fb_adTitle,
+      product.images, 
       uid, 
-      productUrl, 
+      product.online_store_url, 
       lastUsedFacebookAdAccount, 
       lastUsedFacebookPixel, 
       lastUsedFacebookPage, 
-      facebookAccessToken
+      facebookAccessToken,
+      product
     ) 
     
     console.log('DRAFT ID:', draftID)
@@ -113,15 +101,6 @@ async function createDraft(postgres, db, req, res) {
 
 
 
-async function getProductInfo(product_id) {
-  try {
-    const response = await getShopifyProduct(product_id);
-    return response;
-  } catch (error) {
-    console.error('Error:', error);
-    return null;
-  }
-}
 
 
 

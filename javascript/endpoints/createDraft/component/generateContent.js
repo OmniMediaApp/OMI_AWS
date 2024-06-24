@@ -24,6 +24,10 @@ async function generateContent(productName, productDescription) {
         17. Target age range (in the format [minAge, maxAge]). Minimum 18.
         18. Target gender (men, women, or all).
         19. Top 6 Facebook ad interests (as a JavaScript array). Answer in the form of a JavaScript array, for example, ["Example", "Example"]. 
+        20. Best CTA for the ad. The options for this are either LEARN_MORE, SIGN_UP, or SHOP_NOW.
+        21. A good facebook campaign name for this product.
+        22. A good facebook adset name for this product.
+        23. A good facebook ad name for this product.
         Include the brackets and the quotes Here are all the possible interests to target: 
         
         Advertising, Agriculture, Architecture, Aviation, Banking, Investment banking, Online banking, Retail banking, 
@@ -63,7 +67,7 @@ async function generateContent(productName, productDescription) {
          Desktop computers, Free software, Hard drives, Network storage, Software, Tablet computers, Audio equipment, 
          Camcorders, Cameras, E-book readers, GPS devices, Game consoles, Mobile phones, Portable media players, 
          Projectors, Smartphones, Televisions
-        9. Best CTA for the ad. The options for this are either LEARN_MORE, SIGN_UP, or SHOP_NOW.`;
+        `;
 
         const response = await axios.post(
             'https://api.openai.com/v1/chat/completions',
@@ -88,7 +92,7 @@ async function generateContent(productName, productDescription) {
             throw new Error("No response from OpenAI");
         }
     } catch (error) {
-        console.error('Error in aiGenerateAdContent:', error.response.data);
+        console.error('Error in generateContent.js:', error.response.data);
         return null;
     }
 }
