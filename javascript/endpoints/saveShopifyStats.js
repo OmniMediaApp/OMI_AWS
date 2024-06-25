@@ -1,166 +1,220 @@
 const axios = require('axios');
 
-//const dateStart = '2024-02-09';
-//const dateEnd = '2024-02-09';
-const shopifyDomain = 'instant-viral.myshopify.com';
-const desiredTimezoneOffset = '-05:00'; // New York timezone offset
-const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-
-
-
-async function saveShopifyStats(db) {
-
-  const today = new Date();
-  today.setDate(today.getDate() - 1); // Subtract one day to get yesterday's date
-
-  const timeZoneOffset = -5; // New York timezone offset is UTC-5
-  const utcTimestamp = today.getTime() + (today.getTimezoneOffset() * 60000);
-  const adjustedTimestamp = utcTimestamp + (timeZoneOffset * 3600000);
-  const adjustedDate = new Date(adjustedTimestamp);
-
-  const dateStart = adjustedDate.toISOString().split('T')[0];
-  const dateEnd = adjustedDate.toISOString().split('T')[0];
-
-
-
-  try {
-
-
-
-    let nextPage = `https://${shopifyDomain}/admin/api/2022-10/orders.json?status=any&fields=total_price,line_items,order_number,created_at,financial_status&created_at_min=${dateStart}T00:00:00${desiredTimezoneOffset}&created_at_max=${dateEnd}T23:59:59${desiredTimezoneOffset}&limit=${250}`;
+async function getShopifyStats(db, postgres, req, res) {
+    const omniBusinessId = req.query.omni_business_id;
+    
+    const busRef = db.collection('businesses').doc(omniBusinessId);
+    const busSnap = await busRef.get();
+    const shopifyDomain = busSnap.data().shopifyDomain;
+    const accessToken = busSnap.data().shopifyAdminAccessToken;
+    const today = new Date(); // Starting point is today
+    const oneYearAgo = new Date();
+    const oneMonthAgo = new Date();
+    
+    oneYearAgo.setFullYear(today.getFullYear() - 1); // Set to one year ago from today
+    oneMonthAgo.setMonth(today.getMonth() - 1);
+    let dateEnddb;
 
     let totalRevenue = 0;
     let totalOrders = 0;
     let totalProfit = 0;
     let totalCOGS = 0;
-    let averageOrderValue =0;
-    const hourlyRevenue = {};
-    const hourlyOrders = {};
-    const hourlyCOGS = {};
-    const hourlyProfit = {};
+    let averageOrderValue = 0;
+    let finalProfit = 0;
+    let hourlyRevenue = Array(24).fill(0);
+    let hourlyOrders = Array(24).fill(0);
+    let hourlyCOGS = Array(24).fill(0);
+    let hourlyProfit = Array(24).fill(0);
+    let hourlyAov = Array(24).fill(0);
+    
+    let currentDate = new Date(oneMonthAgo);
+  
+    let h = 0; 
+    while (h < 15) {
+        const day = new Date(today); // Use today's date as the reference for each iteration
+        day.setDate(day.getDate() - h); // Adjust for each day in the loop
+        const dateFormatted = day.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const dateStart = `${dateFormatted}T00:00:00-04:00`; // Adjust timezone if needed
+        const dateEnd = `${dateFormatted}T23:59:59-04:00`;  // End of the day in UTC
+        dateEnddb = dateFormatted;
+    
+        try {
+            let nextPage = `https://${shopifyDomain}/admin/api/2022-10/orders.json?status=any&created_at_min=${dateStart}&created_at_max=${dateEnd}&limit=250`;
+            
+            console.log(dateStart);
+            console.log(nextPage);
 
-    while (nextPage) {
-      const config = {
-        method: 'get',
-        url: nextPage,
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-        },
-      };
-
-      console.log(config.url);
-      const response = await axios(config);
-      //console.log(response.data)
-      const COGS = await getCOGS();
-      //console.log(COGS)
+            totalRevenue = 0;
+            totalOrders = 0;
+            totalProfit = 0;
+            totalCOGS = 0;
+            averageOrderValue = 0;
+            finalProfit = 0;
+            hourlyRevenue = Array(24).fill(0);
+            hourlyOrders = Array(24).fill(0);
+            hourlyCOGS = Array(24).fill(0);
+            hourlyProfit = Array(24).fill(0);
+            hourlyAov = Array(24).fill(0);
 
 
 
+            while (nextPage) {
+                const config = {
+                    method: 'get',
+                    url: nextPage,
+                    headers: {
+                        'X-Shopify-Access-Token': accessToken,
+                    },
+                };
+                
+                const response = await axios(config);
+                const productCost = await getCOGS(postgres, omniBusinessId);
+                const COGS = productCost.filter(item => item.cogs !== null);
+             
+                let orders = [];
+                for (let i = 0; i < response.data.orders.length; i++) {
+                    const order = response.data.orders[i];
+                    const totalLineItemsPrice = parseFloat(order.total_line_items_price) - parseFloat(order.total_discounts);
+                    const shippingFee = order.total_shipping_price_set ? parseFloat(order.total_shipping_price_set.presentment_money.amount) : 0;
+                    const totalTax = order.total_tax_set ? parseFloat(order.total_tax_set.presentment_money.amount) : 0;
+                    
+                    const orderTotal = totalLineItemsPrice + shippingFee + totalTax;
+                    totalRevenue += orderTotal;
+                    totalOrders += 1;
 
-      let orders = [];
-      for (let i = 0; i < response.data.orders.length; i++) {
-        for (let j = 0; j < response.data.orders[i].line_items.length; j++) {
-          orders.push({
-            productID: response.data.orders[i].line_items[j].product_id,
-            quantity: response.data.orders[i].line_items[j].quantity,
-            orderNumber: response.data.orders[i].order_number,
-            createdAt: response.data.orders[i].created_at,
-            totalPrice: response.data.orders[i].line_items[j].price_set.presentment_money.amount * 1,
-          });
+                    for (let j = 0; j < order.line_items.length; j++) {
+                        const lineItem = order.line_items[j];
+                        orders.push({
+                            variantID: lineItem.variant_id,
+                            productID: lineItem.product_id,
+                            quantity: lineItem.quantity,
+                            orderNumber: order.order_number,
+                            createdAt: order.created_at,
+                            totalPrice: totalLineItemsPrice,
+                        });
+                    }
+                }
+
+                let allData = [];
+                for (let i = 0; i < orders.length; i++) {
+                    for (let j = 0; j < COGS.length; j++) {
+                        if (orders[i].variantID == COGS[j].id) {
+                            let orderProfit = orders[i].totalPrice - parseFloat(COGS[j].cogs);
+                            totalProfit += orderProfit;
+                            allData.push({
+                                createdAt: orders[i].createdAt,
+                                totalPrice: orders[i].totalPrice,
+                                orderNumber: orders[i].orderNumber,
+                                productID: orders[i].productID,
+                                productCost: parseFloat(COGS[j].cogs),
+                                profit: orderProfit,
+                                quantity: orders[i].quantity,
+                            });
+                        }
+                    }
+                }
+
+                for (let i = 0; i < allData.length; i++) {
+                    totalCOGS += allData[i].productCost * allData[i].quantity;
+
+                    const order = allData[i];
+                    const orderCreatedAt = new Date(order.createdAt);
+                    orderCreatedAt.setHours(orderCreatedAt.getHours() - 5);
+                    const hour = orderCreatedAt.getHours();
+
+                    hourlyRevenue[hour] += order.totalPrice;
+                    hourlyCOGS[hour] += order.productCost;
+                    hourlyProfit[hour] += order.profit;
+                    hourlyOrders[hour] += 1;
+                    hourlyAov[hour] = hourlyRevenue[hour] / hourlyOrders[hour];
+                }
+                
+                nextPage = getNextPageLink(response.headers.link);
+            }
+
+            averageOrderValue = totalRevenue / totalOrders;
+            finalProfit = totalRevenue - totalCOGS;
+            
+            h += 1;
+
+            await saveToDB(postgres, omniBusinessId, dateEnddb, {
+                totalRevenue: totalRevenue,
+                totalOrders: totalOrders,
+                totalCOGS: totalCOGS,
+                totalProfit: finalProfit,
+                hourlyRevenue: hourlyRevenue,
+                hourlyOrders: hourlyOrders,
+                hourlyCOGS: hourlyCOGS,
+                hourlyProfit: hourlyProfit,
+                hourlyAov: hourlyAov,
+                averageOrderValue: averageOrderValue,
+            });
+
+        } catch (error) {
+            console.error('Error fetching Shopify orders:', error);
+            throw error;
         }
-      }
-
-
-
-
-
-
-      let allData = []
-      for (let i = 0; i < orders.length; i++) {
-        for (let j = 0; j < COGS.length; j++) {
-          if (orders[i].productID == COGS[j].productID) {
-            totalProfit += (orders[i].totalPrice * 1) - (COGS[j].productCost * 1);
-            allData.push({
-              createdAt: orders[i].createdAt,
-              totalPrice: orders[i].totalPrice,
-              orderNumber: orders[i].orderNumber,
-              productID: orders[i].productID,
-              productCost: COGS[j].productCost,
-              profit: (orders[i].totalPrice * 1) - (COGS[j].productCost * 1),
-              quantity: orders[i].quantity,
-            })
-          }
-        }
-      }
-
-      console.log(allData)
-
-
-      for (let i = 0; i < allData.length; i++) {
-        totalRevenue = totalRevenue + (allData[i].totalPrice * 1);
-        totalOrders = totalOrders + 1;
-        console.log("Product Cost:", allData[i].productCost, "Quantity:", allData[i].quantity);
-        totalCOGS += allData[i].productCost * allData[i].quantity;
-        
-
-
-        for (let hour = 0; hour < 24; hour++) {
-          hourlyRevenue[hour] = 0;
-          hourlyOrders[hour] = 0;
-          hourlyCOGS[hour] = 0;
-          hourlyProfit[hour] = 0;
-        }
-
-        // Loop through each order and add revenue to the corresponding hour
-        for (let i = 0; i < allData.length; i++) {
-          const order = allData[i];
-          const orderTotalPrice = order.totalPrice * 1;
-          const orderTotalCOGS = order.productCost * 1;
-          const orderTotalProfit = order.profit * 1;
-          const orderCreatedAt = new Date(order.createdAt);
-          orderCreatedAt.setHours(orderCreatedAt.getHours() - 5); // Subtract 5 hours
-          const hour = orderCreatedAt.getHours(); // Get the updated hour
-          hourlyRevenue[hour] += orderTotalPrice;
-          hourlyCOGS[hour] += orderTotalCOGS;
-          hourlyProfit[hour] += orderTotalProfit;
-          hourlyOrders[hour] += 1;
-        }
-      }
-
-      // Check if there is a next page
-      nextPage = getNextPageLink(response.headers.link);
     }
-    averageOrderValue = totalRevenue / totalOrders;
-
-    await saveToDB({ totalRevenue: totalRevenue, totalOrders: totalOrders,totalCOGS: totalCOGS, totalProfit: totalProfit, hourlyRevenue: hourlyRevenue, hourlyOrders: hourlyOrders, hourlyCOGS: hourlyCOGS, hourlyProfit: hourlyProfit });
-    return { totalRevenue: totalRevenue, totalOrders: totalOrders,totalCOGS: totalCOGS, totalProfit: totalProfit, hourlyRevenue: hourlyRevenue, hourlyOrders: hourlyOrders, hourlyCOGS: hourlyCOGS, hourlyProfit: hourlyProfit };
-  } catch (error) {
-    // Handle errors
-    console.error('Error fetching Shopify orders:', error);
-    throw error; // Re-throw the error to propagate it
-  }
-
-  async function saveToDB(data) {
-    const res = await db.collection('ShopifyStoreStats').doc(shopifyDomain).collection('dates').doc(dateEnd).set(data);
-  }
-
-
-  async function getCOGS() {
-    const COGSRef = db.collection('ShopifyProductCOGS').doc(shopifyDomain);
-    const doc = await COGSRef.get();
-    return doc.data().data
-  }
+    return { totalRevenue, totalOrders, totalCOGS, finalProfit, hourlyRevenue, hourlyOrders, hourlyCOGS, hourlyProfit, hourlyAov, dateEnddb };
 }
 
+async function saveToDB(postgres, omni_business_id, date, data) {
+    const query = `
+        INSERT INTO shopify_stats (omni_business_id, date, average_order_value, total_cost_of_goods, total_orders, total_profit, total_revenue, hourly_stats)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (omni_business_id, date) 
+        DO UPDATE SET 
+            average_order_value = EXCLUDED.average_order_value,
+            total_cost_of_goods = EXCLUDED.total_cost_of_goods,
+            total_orders = EXCLUDED.total_orders,
+            total_profit = EXCLUDED.total_profit,
+            total_revenue = EXCLUDED.total_revenue,
+            hourly_stats = EXCLUDED.hourly_stats,
+            updated_at = CURRENT_TIMESTAMP;
+    `;
 
+    const values = [
+        omni_business_id, 
+        date, 
+        data.averageOrderValue, 
+        data.totalCOGS, 
+        data.totalOrders, 
+        data.totalProfit, 
+        data.totalRevenue, 
+        JSON.stringify({
+            hourlyRevenue: data.hourlyRevenue,
+            hourlyOrders: data.hourlyOrders,
+            hourlyCOGS: data.hourlyCOGS,
+            hourlyProfit: data.hourlyProfit,
+            hourlyAov: data.hourlyAov,
+        })
+    ];
 
+    await postgres.query(query, values);
+}
 
+async function getCOGS(postgres, omni_business_id) {
+    const query = `
+        SELECT id, cogs
+        FROM shopify_product_variants
+        WHERE omni_business_id = $1;
+    `;
 
+    return (await postgres.query(query, [omni_business_id])).rows;
+}
 
 function getNextPageLink(linkHeader) {
-  // Implement your logic to extract the next page link from the linkHeader
-  return null; // For simplicity, returning null here. You should implement this logic.
+    if (!linkHeader) {
+        return null; // No Link header present, likely no next page
+    }
+
+    const linkParts = linkHeader.split(',');
+    const nextLink = linkParts.find(p => p.includes('rel="next"'));
+    if (nextLink) {
+        const match = nextLink.match(/<(.*?)>; rel="next"/);
+        return match ? match[1] : null;
+    }
+    return null;
 }
 
-module.exports = saveShopifyStats;
-
+module.exports = getShopifyStats;
