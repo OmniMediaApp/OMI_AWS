@@ -2,6 +2,7 @@ const express = require('express');
 const { Client } = require('pg');
 const { S3Client } = require('@aws-sdk/client-s3');
 const { PutObjectCommand } = require('@aws-sdk/client-s3');
+const axios = require('axios');
 const getGoogleRefreshToken = require('./endpoints/getGoogleRefreshToken');
 const getShopifyOrders = require('./endpoints/getShopifyOrders');
 const getShopifyProductsFromShopify = require('./endpoints/getShopifyProductsFromShopify');
@@ -27,7 +28,6 @@ const updateFileName = require('./endpoints/databaseQueries/updateFileName');
 const updateFileProductID = require('./endpoints/databaseQueries/updateFileProductID');
 const populateShopifyProductsMain = require('./endpoints/populateShopifyProducts');
 const downloadFileFromS3 = require('./endpoints/downloadFileFromS3');
-const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
 const populateFacebookInsightsMain = require('./populateFacebookInsights/populateFacebookInsights');
 const populateFacebookVideoInsightsMain = require('./populateFacebookInsights/populateFacebookVideoInsights');
 const populateFacebookImageInsightsMain = require('./populateFacebookInsights/populateFacebookImageInsights');
@@ -83,6 +83,10 @@ postgres.connect()
     },
   });
   const multer = require('multer');
+const getShopifyProductsWithVariants = require('./endpoints/databaseQueries/getShopifyProductsWithVariants');
+const getShopifyProducts = require('./endpoints/databaseQueries/getShopifyProducts');
+const getFilesByProductID = require('./endpoints/databaseQueries/getFilesByProductID');
+const getShopifyProductImages = require('./endpoints/databaseQueries/getShopifyProductImages');
   const aws_s3_storage = multer.memoryStorage(); // Store files in memory
   const upload = multer({ aws_s3_storage });
   
@@ -152,7 +156,7 @@ app.get('/getShopifyOverview', async (req, res) => {
 
 app.post('/createDraft', async (req, res) => {
   try{
-  const result = await createDraft(db, req, res);
+  const result = await createDraft(postgres, db, req, res);
   res.send(result);
   } catch (error){
     console.error(error);
@@ -357,7 +361,7 @@ app.post('/getShopifyStats', async (req, res) => {
 
 
 
-app.post('/search', async (req, res) => {
+app.get('/search', async (req, res) => {
   try {
     const result = await generalSearch(postgres, req, res);
     res.send(result);
@@ -425,6 +429,28 @@ app.get('/populateShopifyProducts', async (req, res) => {
 app.get('/getShopifyProducts', async (req, res) => {
   try {
     const result = await getShopifyProducts(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/getShopifyProductsWithVariants', async (req, res) => {
+  try {
+    const result = await getShopifyProductsWithVariants(postgres, req, res);
+    res.send(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ error: 'An error occurred while querying db' }); 
+  }
+});
+
+
+app.get('/getShopifyProductImages', async (req, res) => {
+  try {
+    const result = await getShopifyProductImages(postgres, req, res);
     res.send(result);
   } catch (error) {
     console.error(error);

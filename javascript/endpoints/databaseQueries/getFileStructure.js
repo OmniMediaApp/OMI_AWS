@@ -15,7 +15,7 @@ async function getFileStructure(postgres, req, res) {
         
         const result = await postgres.query(query, [omni_business_id, parent_id]);
         const data = result.rows;
-        console.log(data)
+        //console.log(data)
         
         // Send response back to the client
         return data

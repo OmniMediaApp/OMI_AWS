@@ -28,7 +28,7 @@ async function generalSearch(postgres, req, res) {
         // Function to create the search query for each table
         const createSearchQuery = (table, columns) => {
             const conditions = columns.map(column => `${column}::text ILIKE $2`).join(' OR ');
-            return `SELECT * FROM ${table} WHERE omni_business_id = $1 AND (${conditions})`;
+            return `SELECT * FROM ${table} WHERE omni_business_id = $1 AND (${conditions}) LIMIT 10`;
         };
 
         // Execute search queries for each table and combine the results
@@ -45,7 +45,7 @@ async function generalSearch(postgres, req, res) {
         }
 
         // Send response back to the client
-        res.json(results);
+        return results;
     } catch (error) {
         console.error('Error executing search query:', error);
         // Send error response back to the client

@@ -11,6 +11,7 @@ async function createDraft(postgres, db, req, res) {
 
   try {
     //FROM REQUEST
+    console.log('REQUEST:', req.body)
     const product = req.body.product;
     const uid = req.query.uid;
 
@@ -80,7 +81,7 @@ async function createDraft(postgres, db, req, res) {
       fb_campaignTitle,
       fb_adsetTitle,
       fb_adTitle,
-      product.images, 
+      product.img_src, 
       uid, 
       product.online_store_url, 
       lastUsedFacebookAdAccount, 
