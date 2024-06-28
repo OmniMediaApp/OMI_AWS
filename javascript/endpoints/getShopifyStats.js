@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { format, subDays, subMonths } = require('date-fns');
 
 async function getShopifyStats(db, postgres, req, res) {
     try {
@@ -7,26 +6,150 @@ async function getShopifyStats(db, postgres, req, res) {
         const { shopifyDomain, shopifyAdminAccessToken } = await getBusinessDetails(db, omniBusinessId);
         const productCostMap = await getCOGS(postgres, omniBusinessId);
 
-        const today = new Date();
-        const yesterday = format(today, 'yyyy-MM-dd');
-        const oneMonthAgo = format(subMonths(today, 1), 'yyyy-MM-dd');
+    let totalRevenue = 0;
+    let totalOrders = 0;
+    let totalProfit = 0;
+    let totalCOGS = 0;
+    let averageOrderValue = 0;
+    let finalProfit = 0;
+    let totalRefunds = 0;
+    let refundCOGS = 0;
+    let hourlyRevenue = Array(24).fill(0);
+    let hourlyOrders = Array(24).fill(0);
+    let hourlyCOGS = Array(24).fill(0);
+    let hourlyProfit = Array(24).fill(0);
+    let hourlyAov = Array(24).fill(0);
+    
+    
+    let currentDate = new Date(oneMonthAgo);
+  
+    let h = 0; 
+    while (h < 2) {
+        const day = new Date(today); // Use today's date as the reference for each iteration
+        day.setDate(day.getDate() - h); // Adjust for each day in the loop
+        const dateFormatted = day.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const dateStart = `${dateFormatted}T00:00:00-04:00`; // Adjust timezone if needed
+        const dateEnd = `${dateFormatted}T23:59:59-04:00`;  // End of the day in UTC
+        dateEnddb = dateFormatted;
+    
+        try {
+            let nextPage = `https://${shopifyDomain}/admin/api/2022-10/orders.json?status=any&created_at_min=${dateStart}&created_at_max=${dateEnd}&limit=250`;
+            
+            console.log(dateStart);
+            console.log(nextPage);
 
-        const { totalStats, hourlyStats } = await fetchShopifyOrders(shopifyDomain, shopifyAdminAccessToken, productCostMap, yesterday, today);
+            totalRevenue = 0;
+            totalOrders = 0;
+            totalProfit = 0;
+            totalCOGS = 0;
+            averageOrderValue = 0;
+            finalProfit = 0;
+            totalRefunds = 0;
+            hourlyRevenue = Array(24).fill(0);
+            hourlyOrders = Array(24).fill(0);
+            hourlyCOGS = Array(24).fill(0);
+            hourlyProfit = Array(24).fill(0);
+            hourlyAov = Array(24).fill(0);
+            
+
+
+
+            while (nextPage) {
+                const config = {
+                    method: 'get',
+                    url: nextPage,
+                    headers: {
+                        'X-Shopify-Access-Token': accessToken,
+                    },
+                };
+                
+                const response = await axios(config);
+                const productCost = await getCOGS(postgres, omniBusinessId);
+                const COGS = productCost.filter(item => item.cogs !== null);
+             
+                let orders = [];
+                for (let i = 0; i < response.data.orders.length; i++) {
+                    const order = response.data.orders[i];
+    
+                    const totalLineItemsPrice = parseFloat(order.total_line_items_price) - parseFloat(order.total_discounts);
+                    const totalPrice =parseFloat(order.total_price)
+                    const orderTotal = totalPrice 
+                    totalRevenue += orderTotal;
+                    totalOrders += 1;
+                    // Calculate refunds
+                    for (let refundIndex = 0; refundIndex < order.refunds.length; refundIndex++) {
+                        const refund = order.refunds[refundIndex];
+                        for (let refundLineItemIndex = 0; refundLineItemIndex < refund.refund_line_items.length; refundLineItemIndex++) {
+                            const refundLineItem = refund.refund_line_items[refundLineItemIndex];
+                            totalRefunds += parseFloat(refundLineItem.subtotal_set.presentment_money.amount);
+                            console.log(refundLineItem.line_item.variant_id);
+                            for (let j = 0; j < COGS.length; j++) {
+                                if (refundLineItem.line_item.variant_id == COGS[j].id) {
+                                    refundCOGS += parseFloat(COGS[j].cogs);
+                                }
+                            }
+                        }
+                    }
+                    
+                    for (let j = 0; j < order.line_items.length; j++) {
+                        const lineItem = order.line_items[j];
+                        orders.push({
+                            variantID: lineItem.variant_id,
+                            productID: lineItem.product_id,
+                            quantity: lineItem.quantity,
+                            orderNumber: order.order_number,
+                            createdAt: order.created_at,
+                            totalPrice: totalLineItemsPrice,
+                        });
+                    }
+                }
+                totalRevenue -= totalRefunds;
 
         await saveToDB(postgres, omniBusinessId, yesterday, totalStats, hourlyStats);
 
-        res.json({
-            totalRevenue: totalStats.totalRevenue,
-            totalOrders: totalStats.totalOrders,
-            totalCOGS: totalStats.totalCOGS,
-            totalProfit: totalStats.totalProfit,
-            hourlyStats,
-            dateEnddb: yesterday
-        });
-    } catch (error) {
-        console.error('Error fetching Shopify orders:', error);
-        res.status(500).json({ error: 'Error fetching Shopify orders' });
+                for (let i = 0; i < allData.length; i++) {
+                    totalCOGS += allData[i].productCost * allData[i].quantity;
+
+                    const order = allData[i];
+                    const orderCreatedAt = new Date(order.createdAt);
+                    orderCreatedAt.setHours(orderCreatedAt.getHours() - 5);
+                    const hour = orderCreatedAt.getHours();
+
+                    hourlyRevenue[hour] += order.totalPrice;
+                    hourlyCOGS[hour] += order.productCost;
+                    hourlyProfit[hour] += order.profit;
+                    hourlyOrders[hour] += 1;
+                    hourlyAov[hour] = hourlyRevenue[hour] / hourlyOrders[hour];
+                }
+                
+                nextPage = getNextPageLink(response.headers.link);
+            }
+
+            averageOrderValue = totalRevenue / totalOrders;
+            finalProfit = totalRevenue - (totalCOGS - refundCOGS);
+            
+            h += 1;
+
+            await saveToDB(postgres, omniBusinessId, dateEnddb, {
+                totalRevenue: totalRevenue,
+                totalOrders: totalOrders,
+                totalCOGS: totalCOGS,
+                totalProfit: finalProfit,
+                totalRefunds: totalRefunds,
+                hourlyRevenue: hourlyRevenue,
+                hourlyOrders: hourlyOrders,
+                hourlyCOGS: hourlyCOGS,
+                hourlyProfit: hourlyProfit,
+                hourlyAov: hourlyAov,
+                averageOrderValue: averageOrderValue,
+            });
+
+        } catch (error) {
+            console.error('Error fetching Shopify orders:', error);
+            throw error;
+        }
     }
+    return { totalRevenue, totalOrders, totalCOGS, finalProfit, totalRefunds, refundCOGS, hourlyRevenue, hourlyOrders, hourlyCOGS, hourlyProfit, hourlyAov, dateEnddb };
 }
 
 async function getBusinessDetails(db, omniBusinessId) {
@@ -114,8 +237,8 @@ function processOrders(orders, productCostMap, hourlyStats, totalStats) {
 
 async function saveToDB(postgres, omni_business_id, date, totalStats, hourlyStats) {
     const query = `
-        INSERT INTO shopify_stats (omni_business_id, date, average_order_value, total_cost_of_goods, total_orders, total_profit, total_revenue, hourly_stats)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO shopify_stats (omni_business_id, date, average_order_value, total_cost_of_goods, total_orders, total_profit, total_revenue, total_refund_amount, hourly_stats)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8  , $9)
         ON CONFLICT (omni_business_id, date) 
         DO UPDATE SET 
             average_order_value = EXCLUDED.average_order_value,
@@ -124,24 +247,25 @@ async function saveToDB(postgres, omni_business_id, date, totalStats, hourlyStat
             total_profit = EXCLUDED.total_profit,
             total_revenue = EXCLUDED.total_revenue,
             hourly_stats = EXCLUDED.hourly_stats,
+            total_refund_amount = EXCLUDED.total_refund_amount,
             updated_at = CURRENT_TIMESTAMP;
     `;
     const values = [
-        omni_business_id,
-        date,
-        totalStats.totalRevenue / totalStats.totalOrders,
-        totalStats.totalCOGS,
-        totalStats.totalOrders,
-        totalStats.totalProfit,
-        totalStats.totalRevenue,
-        JSON.stringify(hourlyStats.map(h => ({
-            revenue: h.revenue,
-            orders: h.orders,
-            cogs: h.cogs,
-            profit: h.profit,
-            discounts: h.discounts,
-            aov: h.revenue / h.orders || 0
-        })))
+        omni_business_id, 
+        date, 
+        data.averageOrderValue, 
+        data.totalCOGS, 
+        data.totalOrders, 
+        data.totalProfit, 
+        data.totalRevenue, 
+        data.totalRefunds,
+        JSON.stringify({
+            hourlyRevenue: data.hourlyRevenue,
+            hourlyOrders: data.hourlyOrders,
+            hourlyCOGS: data.hourlyCOGS,
+            hourlyProfit: data.hourlyProfit,
+            hourlyAov: data.hourlyAov,
+        })
     ];
     await postgres.query(query, values);
 }
